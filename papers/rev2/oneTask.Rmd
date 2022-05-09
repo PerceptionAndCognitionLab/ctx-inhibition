@@ -1,0 +1,315 @@
+```{r oneTaskFunctions,echo=F}
+
+sdComps=function(chains){
+  s=mean(sqrt(chains$s2))
+  s.a=sqrt(mean(chains$s2))
+  st1=mean(apply(chains$theta,1,sd))
+  st2=mean(sqrt(chains$s2Theta))
+  st2.a=sqrt(mean(chains$s2Theta))
+  st3=sd(apply(chains$theta,2,mean))
+  g=mean(sqrt(chains$s2Theta/chains$s2))
+  mu=mean(apply(chains$theta,1,mean))
+  out=c(mu,s,st1,st2,g,chains$I,chains$N)
+  names(out)=c('mu','std','stdTheta.proc','stdTheta.par','g','Nind','Nobs')
+  return(out)
+}
+
+
+effectSD=function(dat){
+  	if (mean(dat$cond %in% 1:2)<1) stop("Conditions must be 1 and 2")
+	sub=as.integer(as.factor(dat$sub))
+	I=max(sub)
+	N=dim(dat)[1]
+	mrt=tapply(dat$rt,list(dat$sub,dat$cond),mean)
+	sample.effect=mrt[,2]-mrt[,1]
+	s=sd(sample.effect)
+	names(s)="sd sampeff"
+  return(s) 
+}
+```
+
+```{r makeStats, echo=F, cache=TRUE}
+source('readData.R')
+statMat=matrix(nrow=24,ncol=10)
+
+dat=readVbStroop()
+out=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+statMat[1,]=out
+colnames(statMat)=names(out)
+#
+dat=readHedgeStroop()
+statMat[2,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readPratteStroopI()
+statMat[3,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readPratteStroopII()
+statMat[4,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readRMStroopI()
+statMat[5,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readRMStroopII()
+statMat[6,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readWhiteheadI(task=3)
+statMat[7,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readWhiteheadII(task=3)
+statMat[8,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readWhiteheadIII(task=3)
+statMat[9,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readVbSimon()
+statMat[10,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readPratteSimonI()
+statMat[11,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readPratteSimonII()
+statMat[12,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readWhiteheadI(task=1)
+statMat[13,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readWhiteheadII(task=1)
+statMat[14,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readWhiteheadIII(task=1)
+statMat[15,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+
+#
+dat=readVbFlanker()
+statMat[16,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readHedgeFlanker()
+statMat[17,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readRMFlankI()
+statMat[18,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readRMFlankII()
+statMat[19,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readWhiteheadI(task=2)
+statMat[20,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readWhiteheadII(task=2)
+statMat[21,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readWhiteheadIII(task=2)
+statMat[22,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readRouderOtherI()
+statMat[23,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+#
+dat=readRouderOtherII()
+statMat[24,]=c(sdComps(genModOneTask(dat)),reliability(dat),
+              split.rel(dat),effectSD(dat))
+
+
+```
+
+To explore whether it is possible to recover correlations in typical designs, it is important to understand typical ranges of variability.  Our approach is to gather a reasonable corpus of studies and analyze them, one-at-time, to understand the levels of true individual variation and trial noise.  There are two issues: A. How to measure these levels of variation?, and B. Which extant studies to analyze?  We take them in turn:
+
+## One-Task Measurement Model
+
+To estimate within-trial and across-individual variabilities, we use an ordinary variance-components hierarchical model.  To truly appreciate how variation can be assessed, the models need to be fully specified rather than left to short-hand.  Let $Y_{ijk\ell}$ be the $\ell$th response for the $i$th individual in the $j$th task and $k$th condition.  In this section we analyze each task independently, so we may safely ignore $j$, the task subscript (we will use it subsequently, however). The model for one task is:
+\[
+Y_{ik\ell} \sim \mbox{Normal}(\alpha_i+x_k\theta_i,\sigma^2),
+\]
+where $\alpha_i$ is the $i$th individual's true response time in the congruent condition, $x_k=0,1$ codes for the incongruent condition, $\theta_i$ is the $i$th individual's true effect, and $\sigma^2$ is the trial noise within an individual-by-condition cell.  The critical target are the $\theta_i$s, and these are modeled as random effects: 
+\[
+\theta_i \sim \mbox{Normal}(\mu_\theta,\sigma^2_\theta),
+\]
+where $\mu_\theta$ describes the overall mean effect and $\sigma^2_\theta$ is the between-person variation in individuals' true effects.  Our targets then are the within-cell trial noise, $\sigma^2$, and between-individual variance, $\sigma^2_\theta$.
+
+To analyze the model priors are needed for all parameters.  Our strategy is to choose scientifically-informed priors [@Dienes:Mclatchie:2018;@Etz:etal:2018;@Rouder:etal:2016b;@Vanpaemel:Lee:2012] that anticipate the overall scale of the data. The parameters on baseline response times, in seconds, are  $\alpha_i \sim \mbox{Normal}(.8,1)$.  These priors are quite broad and place no substantive constraints on the data other than baselines are somewhere around 800 ms plus or minus 2000 ms.  The prior on variability is $\sigma^2 \sim \mbox{Inverse Gamma}(.1,.1)$, where the inverse gamma is parameterized with shape and scale parameters [@Rouder:Lu:2005].  This prior, too, is broad and places no substantive constraint on data.  Priors for $\mu_\theta$ and $\sigma^2_\theta$ were informed by the empirical observation that typical inhibition effects are in the range of 10 ms to 100 ms.  They were $\mu_\theta \sim \mbox{Normal}(50, 100^2 )$ and $\sigma^2_\theta \sim \mbox{Inverse Gamma}(2,30^2)$, where the values are in  milliseconds rather than seconds.  A graph of these prior settings for $\mu$ and $\sigma_\theta=\sqrt{\sigma^2_\theta}$ is shown in Figure \ref{fig:theta}.  These priors make the substantive assumption that effects are relatively small and are not arbitrarily variable across people.  The scale setting on $\sigma^2_\theta$ is important as it controls the amount of regularization in the model, and the choice of 30 (on the ms scale) is scientifically informed [see @Haaf:Rouder:2017].
+
+```{r theta,fig.asp=.33,fig.cap="A, B: Prior distributions of $\\mu_\\theta$ and $\\sigma_\\theta$, respectively.  C: Prior distribution of $\\theta_i$ for $\\mu_\\theta=50$ ms and $\\sigma_\\theta=30$ ms."}
+
+par(mfrow=c(1,3),mgp=c(2,1,0),mar=c(4,1,1.5,1),cex=.9)
+ms=seq(-300,400,1)
+m=priorOne$mu.theta.m*1000
+sd=sqrt(priorOne$mu.theta.v)*1000
+plot(typ='l',axes=F,ms,dnorm(ms,m,sd),
+     xlab=expression(paste("Mean Effect ",mu[theta]," (ms)")),
+     ylab="",lwd=1)
+abline(v=0)
+axis(1)
+mtext(side=3,adj=0,"A.",cex=1.1)
+
+ds.ig=function(s,a,b)  2*s*dinvgamma(s^2,shape=a,scale=b)
+  
+s=seq(0,100,.1)
+plot(s,ds.ig(s,2,30^2),typ='l',axes=F,
+     xlab=expression(paste("Std Dev Effect ",sigma[theta]," (ms)")),
+     ylab="",lwd=1)
+axis(1)
+mtext(side=3,adj=0,"B.",cex=1.1)
+
+m=50
+scale=30
+z=seq(-3,3,.01)
+eff=z*scale+m
+plot(typ='l',axes=F,eff,dnorm(eff,m,scale),
+     xlab=expression(paste("Individual Effect ",theta[i]," (ms)")),
+     ylab="",lwd=1)
+abline(v=0)
+axis(1,at=seq(-100,150,50))
+mtext(side=3,adj=0,"C.",cex=1.1)
+```
+
+```{r metaTab,results='asis'}
+tab1=statMat
+tab0=cbind(tab1[,c(7,6)],tab1[,7]/(2*tab1[,6]),tab1[,8],tab1[,9],tab1[,1]*1000,tab1[,10]*1000,tab1[,2]*1000,tab1[,4]*1000,tab1[,5])
+
+
+mn=apply(tab0,2,mean)
+md=apply(tab0,2,median)
+tab=rbind(tab0,mn,md)
+rownames(tab)=c("1. von Bastian",
+                "2. Hedge",
+                "3. Pratte i",
+                "4. Pratte ii",
+                "5. Rey-Mermet i",
+                "6. Rey-Mermet ii",
+                "7. Whitehead i",
+                "8. Whitehead ii",
+                "9. Whitehead iii",
+                "10. von Bastian",
+                "11. Pratte i",
+                "12. Pratte ii",
+                "13. Whitehead i",
+                "14. Whitehead ii",
+                "15. Whitehead iii",
+                "16. von Bastian",
+                "17. Hedge",
+                "18. Rey-Mermet i",
+                "19. Rey-Mermet ii",
+                "20. Whitehead i",
+                "21. Whitehead ii",
+                "22. Whitehead iii",
+                "23. Rouder i",
+                "24. Rouder ii",
+                 "Mean","Median")
+colnames(tab)=c("Obs",
+            "Indv",
+            "Rep",
+            "Full","Split",
+            "Effect",
+            '$s_d$',
+            '$\\hat{\\sigma}$',
+            '$\\hat{\\sigma}_{\\theta}$',
+            '$\\hat{\\eta}$')
+apa_table(tab
+          ,digits=c(0,0,0,0,2,2,0,0,0,0,2)
+          ,format.args = list(margin=2)
+          , col_spanners = list("Sample Sizes" = c(2, 4), "Reliability" = c(5, 6),"Sample"=c(7,8),"Parameters"=c(9,10),"Ratio"=11)
+          , stub_indents = list("Stroop" = 1:9, "Simon" = 10:15, "Flanker" = 16:22,"Other"=23:24)
+          , escape = F,
+          midrules = 28,
+          ,note="All sample sizes and estimates reflect cleaned data.  See the Appendix for our cleaning steps which differ from those of the original authors.")
+```
+
+```{r}
+save(file='table1.RData',tab)
+```
+
+## Data Sets 
+
+We applied this model to a collection of `r dim(tab0)[1]` experimental tasks from a variety of authors.  Brief descriptions of the tasks are provided in the Appendix.  It is reasonable to ask why these `r dim(tab0)[1]` and whether they are representative.
+The experiments were chosen based on the following three criteria: I. Raw trial-level data were available and adequately documented.  This criterion is necessary because model analysis relies on the raw data and cannot be performed with the usual summary statistics.  II. These raw data could be shared. This research is offered within a fully open and transparent mode [@Rouder:etal:2019a], and you may inspect all steps from raw data to conclusions.  III. The data come from an experimental setup where there was a contrast between conditions; i.e., between congruent and incongruent conditions.  
+
+Are these studies representative?  Representativeness is assessed relative to the goals of the analysis.  The goals here are to ascertain representative values of trial variation ($\sigma^2$) and the true variability in the population after accounting for trial noise ($\sigma^2_\theta$).  Representativeness is not about whether these data sets show high or low correlations among tasks as tasks are analyzed independently and correlations are orthogonal to the variabilities of interest.  Representativeness is not about power or number of participants.  All the studies we considered are well powered for estimating the variabilities, and it is the variabilities that are key.  So, it is fair to ask if these studies are representative for estimating variabilities.  We return to this question after describing the results.
+
+The results from applying the one-task measurement model to the 24 sets are shown in Table \ref{tab:metaTab}.  The first three columns describe the sample sizes:  The first column is the total number of observations across the two conditions after cleaning (see Appendix), the second column is the total number of individuals, and the third column is the average number of replicates per individual per condition.  The fourth and fifth columns provide estimates of reliability.  The column labeled "Full" is the sample reliability using all the observations in one group (see Footnote 1); the column labeled "Split" is the split-half reliability.  Here, even and odd trials comprised two groups and the correlation of individuals' effects across these groups was upweighted by the Spearman-Brown prophecy formula.  Note that the former estimate is more accurate than the split-half estimate because the former uses variability information across trials, much like in ANOVA, where the later does not.  The next pair of columns shows the mean sample effect and the standard deviation of individuals' sample effects around this mean.  These are sample statistics calculated in the usual way and do not reflect the model.  The next two columns are standard deviation estimates from the hierarchical model.  The column $\hat{\sigma}$ is the posterior mean for residual variability and the column $\hat{\sigma}_\theta$ is the posterior mean for the true variability across individuals.  The final column, labeled $\hat{\eta}$, is the ratio of these standard deviations.   As discussed subsequently, this ratio reflects how reliable the task is and how much the naive correlations will be attenuated.
+
+In hierarchical models, the estimate of true variability across people, $\sigma_\theta$ is smaller than the variability among sample effects ($s_d$ in the table).  The reason is straightforward---$s_d$ contains contributions from both individual variability and trial noise.  The phenomenon is sometimes called *hierarchical shrinkage* or *hierarchical regularization*, and a brilliant explanation is provided in @Efron:Morris:1977.  @Rouder:Haaf:2019a extend this explanation to inhibition tasks, and the reader is referred to these sources for further discussion.
+
+```{r oneTaskGraphFunctions}
+
+freqEst=function(dat)
+{
+	if (mean(dat$cond %in% 1:2)<1) stop("Conditions must be 1 and 2")
+	sub=as.integer(as.factor(dat$sub))
+	I=max(sub)
+    m=tapply(dat$rt,list(sub,dat$cond),mean)
+    effect=m[,2]-m[,1] 
+    ci <- t(-1*sapply(1:I, function(x) t.test(dat$rt[sub==x] ~ dat$cond[sub==x],var.equal=T)         $conf.int))
+    out=data.frame(effect,ci,order(effect))
+    colnames(out)=c('mean','upper','lower','order')
+    return(out)     
+}
+
+bayesEst=function(mcmcEffect,burn=1000){
+	keep=(burn+1):dim(mcmcEffect)[1]
+	m=apply(mcmcEffect,2,mean)
+	lo=apply(mcmcEffect,2,quantile,p=.025)
+	hi=apply(mcmcEffect,2,quantile,p=.975)
+	out=data.frame(m,lo,hi)
+    colnames(out)=c('mean','upper','lower')
+    return(out)     		
+}
+
+graphMe=function(dat,mcmcEffect,burn=0){
+	f=freqEst(dat)
+	f[,1:3]=f[,1:3]*1000 
+	b=bayesEst(mcmcEffect,burn=burn)
+	b[,1:3]=b[,1:3]*1000 
+	o=f$order
+	I=length(o)
+	plot(1:I,f$mean[o],typ='n',ylim=range(f[,1:3]),
+     	xlab="Individual",ylab="Effect (ms)",axes=F)
+	polygon(c(1:I,I:1),c(f[o[1:I],2],f[o[I:1],3]),col=rgb(1,0,0,.2),border=NA)
+	polygon(c(1:I,I:1),c(b[o[1:I],2],b[o[I:1],3]),col=rgb(0,0,1,.2),border=NA)
+	lines(1:I,f[o,1],col='darkred',lwd=2)
+	lines(1:I,b[o,1],col='darkblue',lwd=2)
+	axis(1)
+	axis(2)}
+```
+
+```{r rmLetFlanker,eval=F}
+
+dat=letFlanker[letFlanker$cond %in% 1:2,]
+out=genModOneTask(dat)
+graphMe(dat,out$theta)
+f=freqEst(dat)
+f[,1:3]=f[,1:3]*1000
+sd(f[,1])
+b=bayesEst(out$theta,burn=0)
+b[,1:3]=b[,1:3]*1000
+sd(b[,1])
+
+```
+
+We don't know if these 24 studies are representative of a larger corpus simply because researchers do not often model trial noise separate from true individual variability.  In some sense, we are the first here, and the analysis of these 24 is the most comprehensive testbed for this question to date.  We are sanguine that we have covered a broad range of possibilities.  Take, for example, the large range covered by the Hedge et al. flanker study which is characterized by a small degree of trial noise ($\sigma=100$ ms) on one hand, and the Whitehead et al. Stroop studies, which are characterized by a large degree of trial noise ($\sigma \approx 400$ ms) on the other.  Likewise, some studies have a low degree of true individual variation while others have a larger degree.  The good news is that although the studies vary, all the values stay in the same order of magnitude, and there is much stability in the ratio of true individual variation and trial noise.  We think the analyses of these 24 is novel, highly informative, and forms the new state-of-the art for expectations about these variabilities.
+
+From the table, we derive the following critical values for the following simulations.   We set the trial-by-trial variation to $\sigma= `r 1000*sqrt(typical$s2)`$ ms, and the variation of individuals' true effects to $\sigma_\theta=`r 1000*sqrt(typical$theta.var)`$ ms. The critical choice is the latter, and a reader may question its small size.  Does it make sense, and why is the larger value $s_d$, the empirically observed standard deviation of individuals effect scores not used.  The values $s_d$ are larger because they necessarily include contributions from trial noise and variability across individuals.  The second column, $s_\theta$ reflects the model's partition of variance, that is, what is left over after trial noise, given by $\sigma$, is accounted for.  Given the assumptions of the model, it reflects only the variability across individuals.  Hence, it is the far better value for simulation.
+
+We provide a second argument that may be more intuitive for understanding the `r sqrt(typical$theta.var)*1000` ms value.  Consider the possibility that all people truly respond faster in the congruent than in the incongruent condition.  Or, restated, nobody has a negative true effect.  Again, we emphasize the difference between true effects and observed effects.  Obviously even when all people truly respond faster in the congruent condition, some people will have observed effects in the opposite direction simply from trial noise.  How would one know if all true effects are in the same direction.  We developed Bayes factor solutions for just this question [@Haaf:Rouder:2017; @Haaf:Rouder:2019;@Rouder.Haaf.2021].  When every participant shows a true effect in the same direction, we say dominance is observed [@Rouder:Haaf:2018b].  The best evidence to date is that dominance holds in priming and conflict tasks [@Rouder.Haaf.2021].  In the Stroop case, we are sure that everyone Stroops, that is, in the large trial limit, everyone has truly faster scores for congruent than incongruent stimuli [@Haaf:Rouder:2017].  
+
+If dominance holds and the true mean effect is small across the population, say 50 ms, then the variance between individuals cannot be too high.  For if it were large, then some proportion of people must have negative true effects.  Dominance---which is natural and seems to hold in almost all sets we have examined---provides a limit on the size of variability.  Figure \ref{fig:theta} provides a graph of true values with a spread of `r sqrt(typical$theta.var)*1000` ms.  As can be seen, there is only minimal mass for negative true values, and the spread of true values to us seems appropriate for a true 50 ms effect.

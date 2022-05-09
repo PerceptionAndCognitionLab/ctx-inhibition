@@ -1,0 +1,78 @@
+
+
+```{r oneRun2, cache=T}
+out=sim2(typical,trueCor=.8)
+dat=out$dat
+mrt=tapply(dat$rt,list(dat$sub,dat$task,dat$cond),mean)
+effect=mrt[,,2]-mrt[,,1]
+mod=genModWish2(dat,M=2000)
+R=1000
+spearCor=1:R
+for (r in 1:R){
+  out=sim2(typical,trueCor=.8)
+  dat=out$dat
+  spearCor[r]=spearman(dat)[1,2]}
+```
+
+```{r example, fig.cap="The effects of trial variability on the assessment of correlations among tasks.  A: Hypothetical true individual effects show a large degree of correlation across two tasks.  B: Observed effects are so perturbed by trial variability that the correlation is greatly attenuated.  C: Hierarchical model recovery for the data in A.  D: Spearman correction-for-attenuation in a small simulation with realistic settings.",fig.asp=1.1}
+
+mod.est=apply(mod$theta,c(2,3),mean)
+
+par(mfrow=c(2,2),mgp=c(2,1,0),mar=c(4,4,1.5,1))
+par(pty="s")
+plot(1000*out$t.theta,typ='n',
+     xlab="True Effect in Task 1 (ms)",
+     ylab="True Effect in Task 2 (ms)"
+     , bty = "n"
+     , ylim = c(10, 130)
+     , xlim = c(10, 130))
+abline(0,1,lty=2)
+points(1000*out$t.theta,pch=21,bg='green',cex=.8)
+true.cor=cor(out$t.theta)[1,2]
+text(110,30,paste("r=",round(true.cor,2),sep=""))
+mtext(side=3,adj=0,cex=1.2,"A.")
+
+par(pty="s")
+plot(1000*effect,typ='n',
+     xlab="Observed Effect in Task 1 (ms)",
+     ylab="Observed Effect in Task 2 (ms)"
+     , bty = "n"
+     , ylim = c(-50, 170)
+     , xlim = c(-50, 170))
+abline(0,1,lty=2)
+points(1000*effect,pch=21,bg='yellow',cex=.8)
+mtext(side=3,adj=0,cex=1.2,"B.")
+obs.cor=cor(effect)[1,2]
+text(120,-25,paste("r=",round(obs.cor,2),sep=""))
+
+plot(1000*mod.est,typ='n',
+     xlab="Observed Effect in Task 1 (ms)",
+     ylab="Observed Effect in Task 2 (ms)"
+     , bty = "n"
+     , ylim = c(0, 110)
+     , xlim = c(0, 110))
+abline(0,1,lty=2)
+points(1000*mod.est,pch=21,bg='red',cex=.8)
+mod.cor=cor(mod.est)[1,2]
+text(100,20,paste("r=",round(mod.cor,2),sep=""))
+
+mtext(side=3,adj=0,cex=1.2,"C.")
+
+
+hist(spearCor,breaks=50,prob=T,col='grey90',xlim=c(0,1.5),
+     axes=F,main="",ylab="",
+     xlab="Spearman-Corrected Correlation")
+axis(1)
+mtext(side=3,adj=0,cex=1.2,"D.")
+
+par(pty = "m")
+```
+
+```{r cache=T}
+M=2000
+spearCor=1:M
+for (m in 1:M){
+out=sim2(typical,trueCor=.8)
+dat=out$dat
+spearCor[m]=spearman(dat)[1,2]}
+```

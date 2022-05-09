@@ -1,0 +1,13 @@
+base
+coda
+MASS
+MCMCpack
+papaja
+mvtnorm
+curl
+jpeg
+StanHeaders
+ggplot2
+rstan
+corrplot
+dplyr
