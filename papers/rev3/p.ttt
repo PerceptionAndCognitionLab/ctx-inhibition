@@ -1,0 +1,94 @@
+\begin{table*}[hbt]
+\ifnextchar[{\eatarg}{}
+[tbp]
+
+\begin{center}
+\begin{threeparttable}
+
+\caption{\label{tab:corTab}}
+
+\begin{tabular}{llll}
+\toprule
+Study & Year & Correlation & Source\\
+\midrule
+Friedman \& Miyake & 2004 & 0.18 & Cited in Text\\
+Unsworth \& Spillers & 2010 & 0.17 & Cited in Text\\
+Unsworth \& McMillan & 2014 & 0.22 & Cited in Text\\
+Shipstead et al. & 2014 & 0.11 & Cited in Text\\
+Pettigrew \& Martin & 2014 & 0.03 & Cited in Text\\
+Shipstead et al. & 2015 & 0.23 & Cited in Text\\
+Redick et al. & 2015 & 0.17 & Cited in Text\\
+Von Bastian et al. & 2016 & 0 & Computed\\
+Hedge et al. & 2018 & -0.05 & Recomputed\\
+Rey-Mermet et al. (ave) & 2018 & 0 & Recomputed\\
+Whitehead et al. (ave) & 2019 & 0.03 & Recomputed\\
+Draheim et al. & 2020 & 0.17 & Cited in Text\\
+\bottomrule
+\addlinespace
+\end{tabular}
+
+\begin{tablenotes}[para]
+\normalsize{\textit{Note.} Recomputed correlations may differ from original source due to differences in cleaning steps.}
+\end{tablenotes}
+
+\end{threeparttable}
+\end{center}
+
+\end{table*}
+\begin{table*}[hbt]
+\ifnextchar[{\eatarg}{}
+[tbp]
+
+\begin{center}
+\begin{threeparttable}
+
+\caption{\label{tab:metaTab}}
+
+\begin{tabular}{lllllllllll}
+\toprule
+ & \multicolumn{3}{c}{Sample Sizes} & \multicolumn{2}{c}{Reliability} & \multicolumn{2}{c}{Sample} & \multicolumn{2}{c}{Parameters} & \multicolumn{1}{c}{Ratio} \\
+\cmidrule(r){2-4} \cmidrule(r){5-6} \cmidrule(r){7-8} \cmidrule(r){9-10} \cmidrule(r){11-11}
+ & \multicolumn{1}{c}{Obs} & \multicolumn{1}{c}{Indv} & \multicolumn{1}{c}{Rep} & \multicolumn{1}{c}{Full} & \multicolumn{1}{c}{Split} & \multicolumn{1}{c}{Effect} & \multicolumn{1}{c}{$s_d$} & \multicolumn{1}{c}{$\hat{\sigma}$} & \multicolumn{1}{c}{$\hat{\sigma}_{\theta}$} & \multicolumn{1}{c}{$\hat{\eta}$}\\
+\midrule
+Stroop &  &  &  &  &  &  &  &  &  & \\
+\ \ \ 1. von Bastian & 11,245 & 121 & 46 & 0.24 & 0.34 & 64 & 47 & 198 & 22 & 0.11\\
+\ \ \ 2. Hedge & 43,408 & 53 & 410 & 0.83 & 0.75 & 69 & 32 & 188 & 29 & 0.16\\
+\ \ \ 3. Pratte i & 11,114 & 38 & 146 & 0.61 & 0.68 & 91 & 50 & 264 & 36 & 0.14\\
+\ \ \ 4. Pratte ii & 12,565 & 38 & 165 & 0.19 & -0.07 & 12 & 20 & 160 & 15 & 0.10\\
+\ \ \ 5. Rey-Mermet i & 48,937 & 264 & 93 & 0.40 & 0.57 & 54 & 30 & 155 & 18 & 0.12\\
+\ \ \ 6. Rey-Mermet ii & 48,966 & 261 & 94 & 0.86 & 0.84 & 59 & 69 & 174 & 64 & 0.36\\
+\ \ \ 7. Whitehead i & 122,547 & 178 & 344 & 0.70 & 0.71 & 76 & 53 & 378 & 44 & 0.12\\
+\ \ \ 8. Whitehead ii & 133,966 & 194 & 345 & 0.56 & 0.63 & 78 & 52 & 408 & 37 & 0.09\\
+\ \ \ 9. Whitehead iii & 125,979 & 210 & 300 & 0.57 & 0.51 & 116 & 50 & 402 & 37 & 0.09\\
+Simon &  &  &  &  &  &  &  &  &  & \\
+\ \ \ 10. von Bastian & 23,453 & 121 & 97 & 0.60 & 0.61 & 79 & 36 & 128 & 28 & 0.22\\
+\ \ \ 11. Pratte i & 17,343 & 38 & 228 & 0.46 & 0.62 & 17 & 24 & 186 & 18 & 0.10\\
+\ \ \ 12. Pratte ii & 12,266 & 38 & 161 & 0.57 & 0.51 & 30 & 30 & 175 & 23 & 0.13\\
+\ \ \ 13. Whitehead i & 127,036 & 178 & 357 & 0.71 & 0.72 & 67 & 29 & 205 & 24 & 0.12\\
+\ \ \ 14. Whitehead ii & 139,332 & 194 & 359 & 0.56 & 0.59 & 66 & 26 & 212 & 19 & 0.09\\
+\ \ \ 15. Whitehead iii & 125,953 & 210 & 300 & 0.66 & 0.66 & 102 & 28 & 201 & 23 & 0.11\\
+Flanker &  &  &  &  &  &  &  &  &  & \\
+\ \ \ 16. von Bastian & 11,215 & 121 & 46 & -0.02 & -0.55 & 2 & 32 & 152 & 15 & 0.10\\
+\ \ \ 17. Hedge & 43,384 & 53 & 409 & 0.80 & 0.79 & 44 & 16 & 100 & 15 & 0.15\\
+\ \ \ 18. Rey-Mermet i & 49,300 & 265 & 93 & 0.18 & 0.17 & 30 & 24 & 147 & 13 & 0.09\\
+\ \ \ 19. Rey-Mermet ii & 39,275 & 207 & 95 & 0.87 & 0.87 & 36 & 43 & 107 & 40 & 0.37\\
+\ \ \ 20. Whitehead i & 126,987 & 178 & 357 & 0.62 & 0.61 & 47 & 33 & 265 & 25 & 0.10\\
+\ \ \ 21. Whitehead ii & 139,103 & 194 & 359 & 0.19 & 0.19 & 32 & 26 & 272 & 14 & 0.05\\
+\ \ \ 22. Whitehead iii & 125,918 & 210 & 300 & 0.38 & 0.41 & 61 & 30 & 290 & 19 & 0.07\\
+Other &  &  &  &  &  &  &  &  &  & \\
+\ \ \ 23. Rouder i & 11,346 & 52 & 109 & 0.37 & 0.35 & 50 & 28 & 165 & 19 & 0.11\\
+\ \ \ 24. Rouder ii & 16,859 & 58 & 145 & 0.62 & 0.62 & 142 & 72 & 351 & 53 & 0.15\\ \midrule
+Mean & 65,312 & 145 & 223 & 0.52 & 0.51 & 59 & 37 & 220 & 27 & 0.14\\
+Median & 46,172 & 178 & 197 & 0.57 & 0.61 & 60 & 31 & 193 & 23 & 0.11\\
+\bottomrule
+\addlinespace
+\end{tabular}
+
+\begin{tablenotes}[para]
+\normalsize{\textit{Note.} All sample sizes and estimates reflect cleaned data.  See the Appendix for our cleaning steps which differ from those of the original authors.}
+\end{tablenotes}
+
+\end{threeparttable}
+\end{center}
+
+\end{table*}

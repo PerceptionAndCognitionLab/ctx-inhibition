@@ -1,0 +1,476 @@
+---
+title             : "Why Many Studies of Individual Differences With Inhibition Tasks May Not Localize Correlations"
+shorttitle        : "Individual Differences in Cognitive Tasks"
+
+author: 
+  - name          : "Jeffrey N. Rouder"
+    affiliation   : "1"
+    corresponding : yes    # Define only one corresponding author
+    address       : ""
+    email         : "jrouder@uci.edu"
+  - name          : "Aakriti Kumar"
+    affiliation   : "1"
+  - name          : "Julia M. Haaf"
+    affiliation   : "2"
+
+affiliation:
+  - id            : "1"
+    institution   : "University of California, Irvine"
+  - id            : "2"
+    institution   : "University of Amsterdam"
+
+
+author_note: We are indebted to Craig Hedge, Claudia von Bastian, and Alodie Rey-Mermet who allowed us to reuse their individual-differences data sets.  The Rmarkdown source code for this paper is available at  https://github.com/PerceptionAndCognitionLab/ctx-inhibition/papers/rev3.  This source code contains links to all data sets, all analyses, and code for drawing the figures and typesetting the paper.  
+
+note: Version 3.0
+
+abstract: "Individual difference exploration of cognitive domains is predicated on being able to ascertain how well performance on tasks covary.  Yet, establishing correlations among common inhibition tasks such as Stroop or flanker tasks has proven quite difficult.  It remains unclear whether this difficulty occurs because there truly is a lack of correlation or whether analytic techniques to localize correlations perform poorly real-world contexts because of excessive measurement error from trial noise.  In this paper, we explore how well correlations may localized in large data sets with many people, tasks, and replicate trials.  Using hierarchical models to separate trial noise from true individual variability, we show that trial noise in 24 extant tasks is about 8 times greater than individual variability.  This degree of trial noise results in massive attenuation in correlations and instability in Spearman corrections.  We then develop hierarchical models that account for variation across trials, variation across individuals, and covariation across individuals and tasks.  These hierarchical models also perform poorly in localizing correlations.  The advantage of these models is not in estimation efficiency, but in providing a sense of uncertainty so that researchers are less likely to misinterpret variability in their data.  We discuss possible improvements to study designs to help localize correlations."
+
+keywords          : "Individual Differences, Cognitive Tasks, Hierarchical Models, Bayesian Inference"
+
+bibliography      : ["zlab.bib"]
+
+header-includes   :
+   - \usepackage{bm}
+   - \usepackage{amsmath}
+   - \usepackage{setspace}
+   - \usepackage{pcl}
+   - \usepackage{marginnote}
+   - \newcommand{\readme}[1]{\emph{\marginnote{Julia} (#1)}}
+
+figsintext        : no
+figurelist        : no
+tablelist         : no
+footnotelist      : no
+lineno            : no
+
+class             : "man"
+output            : papaja::apa6_pdf
+csl               : apa6.csl
+---
+
+```{r, simSettings}
+typical=list(
+  I=200, #ppl
+  L=100, # reps
+  alpha.var=.2^2,
+  theta.var=.025^2,
+  s2=.200^2)
+
+priorOne=list(
+  s2.a=.5,
+  s2.b=.5, #this does not get squared.
+  a0=2,
+  b0=.03, #this gets squared, in seconds.
+  mu.theta.m=.05,
+  mu.theta.v=.1^2
+)
+```
+
+```{r runs}
+sim2WishFlag=F
+sim2LKJFlag=F
+sim6Flag=F
+runrm4WishFlag=F
+runrm4LKJFlag=F
+```
+
+
+```{r libraries,echo=FALSE,message=FALSE,warnings=FALSE,include=F}
+library('MCMCpack')
+library('papaja')
+library(mvtnorm)
+library(curl)
+library(jpeg)
+library(rstan)
+library(corrplot)
+library(dplyr)
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+rstan_options(auto_write = TRUE)
+set.seed(123)
+source('lib.R')
+```
+
+
+
+In 1957, Lee Cronbach gave a presidential address to the American Psychological Association where he advocates merging two major but separate traditions in research psychology [@Cronbach.1957].  One was termed the *correlational tradition*, and it referred to the rapid advances in psychometrics and scaling at the time.  The other was the *experimental tradition,* which is readily recognizable in this journal and several others.  Although these traditions remain largely separate today, one area where there has been substantial merging is the study of individual differences in cognitive control. Individual-difference studies often include true experimental tasks such as the Stroop task [@Stroop.1935], the Simon task [@Simon.1968], and the Flanker task [@Eriksen.Eriksen.1974].  On the face of it, individual-difference researchers should be sanguine about using such tasks for the following reasons:  First, many of these tasks are designed to isolate a specific cognitive process, such as cognitive control, and they do so by contrasting specific conditions.  For example, in the Stroop task, the score is the contrast between performance for incongruent and congruent conditions.  The subtraction inherent in the contrast controls for unrelated sources of variation such as overall speed.  Second, many of these tasks are robust in that the effects are easy to obtain in a variety of circumstances.  Take again, for example, the Stroop task.  The Stroop effect is so robust that it is considered universal [@MacLeod.1991].  Third, because these tasks are laboratory based and center on experimenter-controlled manipulations, they often have a high degree of internal validity. Fourth, because these tasks are used so often, there is usually a large literature about them to guide implementation and interpretation.  Fifth, task scores are relatively easy to collect and analyze with latent-variable models.  
+
+Before going on, we ask the reader to draw a sharp distinction between a *task* and a *measure.*   Tasks are true experiments where Donders' subtractive logic [@Donders.1868] is used to localize a process of interest. Two conditions are constructed where the only difference between them that is that the process of interest loads more highly on to one than the other.  The contrast of the conditions allows for a measure of the process free from nuisance factors. Measures are instruments that do not have conditions nor use Donders' subtraction method. Good examples of measures are the the anti-saccade accuracy measure [@Kane.etal.2001], the N-back memory measure [@Cohen.etal.1994], and the stop-signal measure [@Logan.Cowan.1984;@Verbruggen.etal.2019].  Measures typically reflect the composite of several skills and processes including but not limited to cognitive control.  For example, obtaining high accuracy in the antisaccade measure requires not only suppression of the prepotent orienting response to the cue, but also speed in moving ones eyes and speed in target identification.  In our usage, measures are not true experiments.  They do not have an associated experimental manipulation and a contrast.  Moreover, the claim that they index a particular process is made *prima facie* and without recourse to experimental logic.  This does not mean that the claim is undesirable.  It does mean that it is up to researchers to assess the claim by their own standard for appropriateness without recourse to an underlying experimental logic.
+
+Figure \ref{fig:usual} shows the usual course of analysis in individual-difference research with cognitive tasks.  There are raw data (Panel A), which are quite numerous, often on the order of hundreds of thousands of observations.  These are cleaned, and to start the analysis, task scores for each participant are tabulated (Panel B).  For example, if Task 1 is a Stroop task, then the task scores would be each individual's Stroop effect, that is, the difference between the mean RT for incongruent and congruent conditions.  A typical task score is a difference of conditions, and might be in the 10s of milliseconds range.  The table of individual task scores is treated as a multivariate distribution, and the covariation of this distribution (Panel C) is decomposed into meaningful sources of variation through latent variable models [Panel D; e.g., @Bollen.1989;@Skrondal.Rabe-Hesketh.2004].  
+
+
+```{r usual,fig.cap="In the usual course of analysis, the raw data (A) are used to tabulate sample effects (B).  The covariation among these task-by-person sample effects (C) then serve as input to latent variable modeling (D).", out.width="4in"}
+knitr::include_graphics("dataAnalysis2.jpg",dpi=100)
+```
+
+
+```{r findCor, cache=TRUE}
+source('readData.R')
+#VB
+s1=readVbStroop()
+s1$task=rep(1,length(s1$sub))
+m=tapply(s1$rt,list(s1$sub,s1$cond),mean)
+stroopEff=m[,2]-m[,1]
+s2=readVbFlanker()
+s2$task=rep(1,length(s2$sub))
+m=tapply(s2$rt,list(s2$sub,s2$cond),mean)
+flankEff=m[,2]-m[,1]
+vbCor=cor(stroopEff,flankEff)
+
+#Hedge
+s1=readHedgeStroop()
+s1$task=rep(1,length(s1$sub))
+s2=readHedgeFlanker()
+s2$task=rep(2,length(s2$sub))
+all=rbind(s1,s2)
+m=tapply(all$rt,list(all$sub,all$cond,all$task),mean)
+eff=(m[,2,]-m[,1,])
+hedgeCor=cor(eff)[1,2]
+#reyMermet
+s1=readRMStroopI()
+s1$task=rep(1,length(s1$sub))
+s2=readRMStroopII()
+s2$task=rep(2,length(s2$sub))
+s3=readRMFlankI()
+s3$task=rep(3,length(s3$sub))
+s4=readRMFlankII()
+s4$task=rep(4,length(s4$sub))
+all=rbind(s1,s2,s3,s4)
+m=tapply(all$rt,list(all$sub,all$cond,all$task),mean)
+eff=m[,2,]-m[,1,]
+a=cor(eff,use="complete.obs")
+rmCor=mean(c(a[1,3],a[1,4],a[2,3],a[2,4]))
+## Whitehead
+s1=readWhiteheadI(task=2) #flanker
+s2=readWhiteheadI(task=3) #stroop
+dat1=rbind(s1,s2)
+m=tapply(dat1$rt,list(dat1$oSub,dat1$cond,dat1$task),mean)
+eff=(m[,2,]-m[,1,])[,2:3]
+wCor1=cor(eff)[1,2]
+#
+s1=readWhiteheadII(task=2) #flanker
+s2=readWhiteheadII(task=3) #stroop
+dat2=rbind(s1,s2)
+m=tapply(dat2$rt,list(dat2$oSub,dat2$cond,dat2$task),mean)
+eff=(m[,2,]-m[,1,])[,2:3]
+wCor2=cor(eff)[1,2]
+#
+s1=readWhiteheadIII(task=2) #flanker
+s2=readWhiteheadIII(task=3) #stroop
+dat3=rbind(s1,s2)
+m=tapply(dat3$rt,list(dat3$oSub,dat3$cond,dat3$task),mean)
+eff=(m[,2,]-m[,1,])[,2:3]
+wCor3=cor(eff)[1,2]
+wCor=mean(c(wCor1,wCor2,wCor3))
+## Alt
+dat=rbind(dat1,dat2,dat3)
+m=tapply(dat$rt,list(dat$oSub,dat$cond,dat$task),mean)
+eff=(m[,2,]-m[,1,])[,2:3]
+wCorA=cor(eff)[1,2]
+```
+
+```{r corTab,results='asis'}
+
+vals=c(.18,.17,.22,.11,.03,.23,.17,.00,-.05,.00,.03,.17)
+year=c(2004,2010,2014,2014,2014,2015,2015,2016,2018,2018,2019,2020)
+studies=c(
+'Friedman & Miyake',
+'Unsworth & Spillers',
+'Unsworth & McMillan',
+'Shipstead et al.',
+'Pettigrew & Martin',
+'Shipstead et al.',
+'Redick et al.',
+'Von Bastian et al.',
+'Hedge et al.',
+'Rey-Mermet et al. (ave)',
+'Whitehead et al. (ave)',
+'Draheim et al.'
+)
+source=c("Cited in Text","Cited in Text","Cited in Text","Cited in Text","Cited in Text","Cited in Text","Cited in Text","Computed","Recomputed","Recomputed","Recomputed","Cited in Text")
+out=cbind(studies,year,vals,source)
+apa_table(out,col.names=c('Study','Year','Correlation',"Source"),note="Recomputed correlations may differ from original source due to differences in cleaning steps.")
+```
+
+
+
+The above latent-variable approach to individual differences has been successful in some domains, such as personality, where rich factor structures are used to capture individual differences [@Ashton.etal.2004;@McCrae.CostaJr.1997].   Indeed, it seemed some twenty years ago that the same strategy would succeed in cognitive control [@Miyake.etal.2000;@Kane.Engle.2003].  Yet, the latent-variable approach has not lived up to the promise, at least not in our opinion.  Scores from experimental tasks correlate with one another far less than one might think *a priori.*   Take the correlation between Stroop and flanker tasks, two popular tasks for measuring inhibition.  Table \ref{tab:corTab} shows some published values from the literature.  As a rule, effects in inhibition tasks (as opposed to measures) show low correlations [@Rey-Mermet.etal.2018].  Indeed, even if we cherry pick the high end of these correlations, we tend not to find values about .3.
+
+
+```{r 'example', child="example.Rmd"}
+```
+
+
+The question of why these correlations are low has been the subject of recent work by @Draheim.etal.2019, @Enkavi.etal.2019, @Hedge.etal.2018 and @Rey-Mermet.etal.2018 among others.  On one hand, they could reflect underlying true task performance that is uncorrelated or weakly correlated.  In this case, the low correlations indicate that performance on the tasks do not largely overlap, and that the tasks are indexing different mental processes.  Indeed, this substantive interpretation is taken by @Rey-Mermet.etal.2018, who argue that inhibition should be viewed as a disparate rather than a unified concept.  By extension, different tasks rely on different and disparate inhibition processes.   
+
+On the other hand, the true correlations could be large but masked by measurement error.  Several authors have noted the possibility of a large degree of measurement error.  @Hedge.etal.2018, for example, set out to empirically assess the reliability of task measures by asking participants to perform a battery of tasks and to return three weeks later to repeat the battery.  With these two measures, @Hedge.etal.2018 computed the test-retest reliability of the tasks.  The results were somewhat disheartening with  test-retest reliabilities for popular tasks in the range from .2 to .7.  @Draheim.etal.2019 argue that commonly used response time difference scores are susceptible to low reliability and other artifacts such as speed-accuracy tradeoffs.
+
+It has been well known for over a century that correlations among measures are attenuated in low reliability environments [@Spearman.1904a].  Yet, how much attenuation can we expect?  If it is negligible, then the observed low correlations may be interpreted as true indicators that the tasks are largely measuring uncorrelated mental abilities.  But if the attenuation is sizable, then the underlying true correlation remains unknown.  One of our contributions in this paper is to document just how big this attenuation is in common designs.  
+
+Figure \ref{fig:example} provides an example of attenuation.  Shown in Panel A are hypothetical *true  difference scores* (or true effects) for 200 individuals on two tasks.  The plot is a scatter plot---each point is for an individual; the x-axis value is the true score on one task, the y-axis value is the true score on the other task.  As can be seen, there is a large correlation, in this case it is `r round(true.cor,2)`. 
+Researchers do not observe these true scores; instead they analyze difference scores from noisy trial data with the tabulation shown in Figure\ \ref{fig:usual}. Figure \ref{fig:example}B shows the scatterplot of these observed difference scores (or observed effects). Because these observed effects reflect trial noise, the correlation is attenuated. In this case it is `r round(obs.cor,2)`.  While this correlation is statistically detectable, the value is dramatically lower than the true one.   
+
+The amount of attenuation of the correlation is dependent on critical inputs such as the number of trials and the degree of trial  variability.  Therefore, to get a realistic picture of the effects of measurement error it is critical to obtain realistic values for these inputs.  In this paper, we survey 15 fairly large inhibition studies.  From this survey, presented here subsequently, we derive typical values for the number of trials and the degree of trial variability.  These typical values are used in Figure\ \ref{fig:example}, and the amount of attenuation of the correlation therefore represents a typical rather than a worst-case scenario.  As will be discussed, we believe that observed correlations in typical designs are less than 1/2 of the true values.
+
+# The Role of Trial Noise
+
+The amount of attenuation shown in Figure\ \ref{fig:example}, from `r round(true.cor,2)` to `r round(obs.cor,2)`, is striking.  No wonder it has been so hard to find correlations!  What can be done?  
+One of the key features of inhibition tasks is that they are comprised on trials.  While the responses on any given trial may be noisy, this noise may be overcome by running many trials.  If there are a great many trials, then the sample means precisely estimate true means, sample differences precisely estimate true differences, and the correlation reflects the true correlation among the tasks.  If there are few trials, then the sample means are variable and the observed correlation is attenuated.  Hence, the number of trials per task is a critical quantity as it determines the systematic downward bias in correlation.
+
+There are two immediate consequences to having multiple trials [@Rouder.Haaf.2019].  The first is that one cannot talk about the reliability of a task or the correlation among two tasks.  These values are critically dependent on the number of trials (called hereforth *trial size*).  We cannot compare different values from different experiments without somehow accounting for differences in this design element.  Simply put, there is no such thing as the reliability of a task or a correlation between tasks without reference to trial size.  The second consequence is that trial size far more important than the number of participants in interpreting results.  The number of participants determines the unsystematic noise in the correlation; the trial size determines the systematic downward bias.  With few trials per task and many participants, researchers will have high confidence in a greatly biased estimate.
+
+There are two potential benefits to understanding the role of trial noise and trial size.  The first is that trial noise can always be overcome in designs with large trials sizes.  We discuss the pragmatics of this approach in the general discussion.  The second benefit is that by using hierarchical models,  trial noise may be modeled and removed. For example, @Behseta.etal.2009, @Haines.etal.2020, @Matzke.etal.2017, @Rouder.Haaf.2019, and @Whitehead.etal.2020 each propose hierarchical models to disattenuate correlations with limited trial sizes.  The potential of such models is shown in Figure \ref{fig:example}C.  Here, a hierarchical model, to be discussed subsequently, was applied to the data in \ref{fig:example}B, and the resulting posterior estimates of participants' effects reveal the true strong correlation.  We refer to *localization* of correlation.  When estimates of correlation are precise and accurate, we say correlations are *well localized*.  When estimates are either highly attenuated or imprecise, then estimates are poorly *localized.*. A suitable measure of localizaiton is root-mean-square error (RMSE) between an estimate and a true value because this measure captures both bias and imprecision.
+
+Based on the demonstration in Figure \ref{fig:example}C, we had come into this research with the hope of telling a *you-can-have-your-cake-and-eat-it* story. We thought that perhaps hierarchical models would allow for the accurate localization of correlations in typical designs providing for an answer to whether cognitive control is unified or disparate.  Yet, the story we tell here is far more complicated.  To foreshadow, overall estimates from hierarchical models do disattenuate correlations.  But, in the course, they suffer from a large degree of imprecision.  It seems that in typical designs, one can use sample statistics and suffer massive attenuation or use a  modeling approach and accept a large degree of imprecision.  And this difficulty is why we believe most studies of individual differences with inhibition tasks fail to localize correlations.   This story is not the one we had hoped to tell.  It would have been so much more desirable if we could show that the models we have develped and advocated for solve such critical problems.  But we cannot do so. The inability to localize correlations even with the most sophisticated statistical approaches is an important story for the community of individual-differences scholars. 
+
+# Spearman's Correction for Attenuation
+
+Before addressing the main question about localizing correlations, we consider the @Spearman.1904a correction for the attenuation.  In this brief detour, we assess whether Spearman's correction leads to the localization of latent correlations among tasks in typical designs.  The assessment provides guidance because the data generation in simulations match well with the assumptions in Spearman's correction.  If Spearman's correction cannot localize the latent correlations in realistic designs, these correlations may indeed be unrecoverable.
+
+Spearman's derivation comes from decomposing observed variation into true variation and  measurement noise.  When reliabilities are low, correlations may be upweighted to account for them.  In Spearman's classic formula, the disattenuated correlation, denoted $r'_{xy}$ between two variables $x$ and $y$ is
+\[
+r'_{xy} = \frac{r_{xy}}{\sqrt{r_{xx}r_{yy}}},
+\]
+where $r_{xy}$ is the sample correlation and $r_{xx}$ and $r_{yy}$ are the sample reliabilities.[^samp.rel] 
+
+[^samp.rel]: The estimation of reliability in tasks is different than the estimation of reliability in a classical test because there are replicates within people and conditions in tasks.  The presence of these replicates may be leveraged to produce better estimates of error variability than when they are not present.  Let $\bar{Y}_{ik}$ and $s_{\bar{y}_{ik}}$ be the sample mean and sample standard error for the $i$th individual in the $k$th condition, $k=1,2$.  Let $d_{i}=\bar{Y}_{i2}-\bar{Y}_{i1}$ be the effect for the $i$th individual, and let $V_d$ be the sample variance of these effects.  This sample variable is the total variance to be decomposed into true and error variances.  Assuming an equal number of trials per condition, the error variance for the $i$th person, denoted $V_{ei}$ is $s^2_{\bar{y}_{i1}}+s^2_{\bar{y}_{i2}}$.  The estimate of error variance is simply the average of these individual error variances, or $V_e=\sum_i\sum_k s_{\bar{y}_{ik}}^2/I$.  The reliability is $r=(V_d-V_e)/V_d$.
+
+Spearman's correction, while well known, is not used often.  The problem is that it is unstable.  Panel D of Figure \ref{fig:example} shows the results of a small simulation based on realistic values from inhibition tasks discussed subsequently.  The true correlation is .80.  The Spearman-corrected correlations, however, are not only variable ranging from `r round(min(spearCor), 2)` to `r round(max(spearCor), 2)`, but not restricted to valid ranges.  In fact, `r 100*round(mean(spearCor>1),3)`% of the simulated values are greater than 1.0.   We should take these problems with Spearman's correction seriously.  The poor results in  Figure \ref{fig:example}D may indicate that in low-reliability environments, true correlations among tasks may not be localized.  And this lack of localization may be fundamental---trial noise may destroy the correlation signatures in designs with limited trial sizes.
+
+In this paper, we explore how well correlations may be localized with the conventional analysis (Figure \ref{fig:usual}), with the Spearman correction, and with hierarhical models.  We make our main claims by simulating data from known true correlation values.  We then see how well the methods estimate these true values.  For these simulations to be useful, they must be realistic.  The simulated data must not only be from realistic designs, but they must have realistic levels of true individual variation and of true trial noise.  The simulations are only as good as these inputs.
+
+To make sure our simulations are useful, we analyze existing data sets to find appropriate settings for simulations.  This analysis is presented in the next section.  With these settings established, we simulate data and assess whether correlations are recoverable. The hierarchical latent correlation estimators, while far from perfect, are better than Spearman-corrected correlation estimators.  Subsequently, we apply the same analysis to a large data set from @Rey-Mermet.etal.2018 spanning four inhibition tasks to assess whether the observed low correlations reflect independent task performance or attenuation from trial noise.  Yet, even with hierarchical modeling, we are unable to definitively answer this question.
+
+
+# Variability in Experimental Tasks
+
+
+```{r 'oneTask', child="oneTask.Rmd",eval=TRUE}
+```
+
+
+# Expected Attenuation
+
+The above analysis may also be used to undertstand the degree of attenuation with the usual analysis in Figure \ref{fig:usual}.   The classical estimate, $\rho^*$, is given by 
+\[
+\rho^* = \rho\left(\frac{L\sigma^2_\theta}{L\sigma^2_\theta+2\sigma^2}\right),
+\]
+where $L$ is the trial size or number of trials per person per task per condition.  This equation is most useful if written with the ratio $\gamma=\sqrt{\sigma_\theta/
+\sigma}$, with this ratio interpreted as a ratio of signal (true variability) to noise (trial noise).  Then, the attenuation factor, $\rho^*/\rho$ is
+\begin{equation} \label{eq:fid}
+\frac{\rho^*}{\rho} = \left( \frac{L}{L+2/\gamma^2}\right).
+\end{equation}
+\]
+The last column of Table \ref{tab:metaTab} shows the value of $\gamma$ for the various studies, and the values range from 1/11 to 1/3, with $\gamma=1/8$ corresponding to our typical case.  Figure \ref{fig:attenuate} shows the dependence of the attenuation factor on the number of trials ($L$) for various values of signal to noise.  As can be seen, with the usual approach of tabulating participant-by-task scores, we expect attenuation to be a factor of .44 for $L=100$ replicates.
+
+```{r attenuate, fig.cap="Attenuation of correlation as a function of number of trials ($L$) and signal-to-noise ratio $\\gamma$.  For typical values ($L=100$, $\\eta$=1-to-8), the attenuation is a factor of 44. The plotted values of $\\gamma$ are 1-to-5, 1-to-6.5, 1-to-8, 1-to-9.5, and 1-to-11."}
+attenuate=function(L,g) L/(L+2/(g^2))
+
+L=seq(10,1000,5)
+g=c(1/11,1/9.5,1/8,1/6.5,1/5)
+curves=outer(L,g,attenuate)
+matplot(log10(L),(curves),typ='l',lty=1,ylim=c(0,1),col=c(1,1,2,1,1),lwd=c(1,1,2,1,1),axes=F,xlab="Trials per Task, Condition, and Participant",ylab="Attenuation Factor")
+axVals=c(10,20,50,100,200,500,1000)
+axis(1,at=log10(axVals),label=axVals)
+axis(2,at=c(0,.5,1))
+axis(1,at=log10(seq(10,100,10)),lab=NA)
+axis(1,at=log10(seq(100,1000,100)),lab=NA)
+text(log10(200),.35,"1-to-11")
+text(log10(60),.6,"1-to-5",adj=1)
+abline(v=2,lty=2)
+```
+
+
+# Model-Based Recovery of Correlations Among Tasks
+
+The critical question is then whether accurate estimation of correlation is possible.  The small simulation in the introduction, which was based on the above typical settings for two tasks and a true population correlation of .80, showed that observed correlations among sample effects were greatly attenuated and Spearman's correction was unstable.  We now assess how well observed correlations, Spearman corrections, and hierarchical models localize correlations with larger simulations.
+
+## A Hierarchical Model for Correlation
+
+Here we develop a hierarchical trial-level model for many tasks that explicitly models the covariation in performance among them.  A precursor to this model is provided in @Matzke.etal.2017 and @Rouder.Haaf.2019.  A similar mixed-linear model is provides in @Whitehead.etal.2020.  The difference is that these previous models are applicable for only two tasks and one correlation coefficient.  They are not applicable to several tasks and coefficients.
+
+At the top level, the model is:
+\[
+Y_{ijk\ell} \sim \mbox{Normal}(\alpha_{ij}+x_k\theta_{ij},\sigma^2).
+\]
+The target of inquiry is $\theta_{ij}$ the effect for the $i$th participant in the $j$th task.  The specification is made easier with a bit of vector and matrix notation.  Let $\bftheta_{i}=(\theta_{i1},\ldots,\theta_{iJ})'$ be a column vector of the $i$th individual's true effects.  This vector comes from a group-level multivariate distribution.  The following is the case for three tasks:
+
+\[
+\bftheta_i=\begin{bmatrix} \theta_{i1}\\ \theta_{i2} \\ \theta_{i3}\end{bmatrix} 
+\sim \mbox{N}_3 \left( \begin{bmatrix} \mu_1\\\mu_2\\\mu_3\end{bmatrix},
+\begin{bmatrix}
+\sigma^2_{\theta_1} & \rho_{12}\sigma_{\theta_1}\sigma_{\theta_2} & \rho_{13}\sigma_{\theta_1}\sigma_{\theta_3}\\
+\rho_{12}\sigma_{\theta_1}\sigma_{\theta_2} & \sigma_{\theta_2}^2 & \rho_{23}\sigma_{\theta_2}\sigma_{\theta_3}\\
+\rho_{13}\sigma_{\theta_1}\sigma_{\theta_3} & \rho_{23}\sigma_{\theta_2}\sigma_{\theta_3} & \sigma_{\theta_3}^2\\
+\end{bmatrix}
+\right).
+\]
+More generally, for $J$ tasks, 
+\begin{equation}
+\label{eq:Sig}
+\bftheta_i \sim \mbox{N}_J(\bfmu,\bfSigma_\theta).
+\end{equation}
+
+Priors are needed for $\bfmu$, the vector of task means, and $\bfSigma_\theta$, the covariance across the tasks.  We take the same strategy of using scientifically-informed priors.  For $\bfmu$, we place the normal in Figure\ \ref{fig:theta}A on each element.  For $\bfSigma_\theta$, the classic choice is the *inverse Wishart* prior.  This choice is popular because it is flexible and computationally convenient [@OHagan.Forster.2004].  The inverse Wishart requires a scale parameter, and we set it so that the marginal prior on standard deviations of true variation matches the distribution in Figure \ref{fig:theta}B.[^lkj]  It is the use of the inverse Wishart here that allows the model to be applicable to many tasks and correlation coefficients.  
+
+[^lkj]: There is an alternative choice of prior for covariance that we extensively explored, the *LKJ prior* [@Lewandowski.etal.2009].  This prior is less informative than the Wishart because, unlike the Wishart, the estimation of correlation is independent of the specification of scale.  Consequently, this prior is  recommended [@McElreath.2016], and implementation is convenient in the `R`-package `rstan` [@StanDevelopmentTeam.2018].  Yet, we found better performance for the inverse Wishart in simulations in that the posterior credible intervals were smaller and better covered the true value.  The increased performance of the Wishart reflects the fact that researchers have a rough idea about the scale of individual differences---it is on the order of tens of milliseconds---and this is enough information for the improved performance of the inverse Wishart.
+
+## Two Tasks
+
+```{r 'twoTask', child="twoTask.Rmd",eval=TRUE}
+```
+
+## Six Tasks
+
+```{r 'sixTask', child="sixTask.Rmd",eval=TRUE}
+```
+
+# Analysis of Rey-Mermet, Gade, and Oberauer (2018)
+
+```{r 'reyMermet', child="reyMermet.Rmd",eval=TRUE}
+```
+
+# General Discussion
+
+One basic question facing researchers in cognitive control is whether inhibition is a unified phenomenon or a disparate set of phenomena.  A natural way of addressing this question is to study the pattern of individual differences across several inhibition tasks.  In this paper, we have explored whether correlations across inhibition tasks may be localized.  We consider typically large studies that enroll hundreds of participants and run tasks with 100s of usable trials per condition.  Our main assessment is downbeat---correlations across typical inhibition tasks, say Stroop, flanker, Simon, and the like, are difficult to localize.  This statement of poor localization holds for hierarchical models that model trial noise.  
+
+Why this depressing state-of-affairs occurs is fairly straightforward.  Relative to trial noise, there is little true individual variation in inhibition tasks.  To see why this is so, consider an average effect, say one that is 60 ms.  In inhibition tasks like Stroop and flanker, we can safely make a *dominance assumption*---nobody truly has a negative effect [@Haaf.Rouder.2017].  That is to say nobody truly identifies incongruent stimuli faster than congruent ones.  Under this assumption, where all true scores are positive, a small mean necessarily implies a small variance.  For example, if true Stroop effects are reasonably normally shaped, the mean is 60 ms and there can be no mass below zero, then an upper bound on variability across true scores is a standard deviation of 25 ms or so.  This is a small amount of variation compared to trial variability, which is typically 8 times larger.  This small degree of true variation necessarily implies a small degree of covariation across tasks.  And this small degree of covariation is beyond the resolution of typical experimental designs with limited numbers of trials.
+
+We believe this problem of localizing individual differences and correlations extends beyond inhibition tasks.  It likely holds broadly in most task domains as most tasks have relatively small effects, whether on the order of 60 ms for RT, on the order of .08 for accuracy, or maybe on the order of 1/10th of the scale for Likert values.  If we make a dominance assumption---each individual has a true effect in the same direction---then there cannot be much individual variability else these mean effects would be larger.  And measuring correlations with small degrees of individual variability may be beyond the resolution of typical designs.
+
+## Recommendations
+
+Based on the above correlation-localization results, we can make the following recommendations:
+
+*Be mindful of attenuation*.  Researchers have certainly been aware of measurement error and understand the link between measurement error and attenuation.  Yet, they nonetheless estimate correlations in high trial-noise environments?  Previous to this work, there were no systematic studies of the degree of attenuation in inhibition, and hence little basis to understand its effects.  Here, we argue that the critical factor---the ratio of true variability to trial noise---is on the order of 1-to-8, and may be as great as 1-to-11.  Now, for various numbers of trials, researchers can compute how much attenuation is expected using Equation (\ref{eq:fid}).  These values can be used for sample size planning and as context in interpretation.  
+
+*Stress the number of trials in a task*.  Typically, researchers are quick to report the number of participants they have run.  These numbers appear not only in method sections, but in abstracts and tables.  And researchers may believe that with larger numbers of participants, results are better powered and become more accurate.  This belief is wrong, especially in high trial noise environments.  The more critical design element is the number of trials per person within a task.  With few trials, there is much trial noise and much attenuation.  Low numbers of trials add systematic bias whereas low numbers of people add unsystematic noise.  Moreover, using high numbers of participants with low numbers of trials breeds high confidence in a wrong answer.  We recommend researchers consider running fewer tasks and conditions to gain larger numbers of trials per task.  Moreover, we recommend researchers stress the role of the number of trials in their discussion and report these numbers in their method sections, tables, and abstracts.
+
+*Localization is much better in measures.*  We have focused here on experimental tasks where there is a theoretically-motivated contrast between conditions.  The contrast is key---it allows isolation of the process of interest, say cognitive control, from other factors such as motivation or general speed.  The claim here is that correlations among tasks are difficult to localize
+
+The alternative is to use a measure rather than a task.  Measures have better statistical properties than tasks.  They are often highly reliable and lead to higher correlations among similarly-motivated measures [@Draheim.etal.2019;@Draheim.etal.2021].   It is far easier to localize correlations with measures than tasks.  
+
+For us, however, interpretability remains an issue. Whether a certain measure indexes a given process is asserted *prima facie* rather than by experimental logic.  Some assertions seem quite reasonable, say that performance on a span task indexes working memory [@Daneman.Carpenter.1980].  Others seem less reasonable.  We worry, for example, that antisaccade accuracy [@Kane.etal.2001] reflects the speed of detecting briefly flashed targets (general speed) as much as suppressing a cue located away from the target (cognitive control).  
+
+In practice, it is sometimes difficult to keep track of what is a task and what is a measure if only because we tend to use "task" for both tasks and measures.  Popular measures such as the antisaccade accuracy measure and the stop-signal measure are routinely called tasks, but, in our usage, they are not.  Regardless of terminology, researchers need be aware of a foundational trade-off: tasks have high interpretability and poor statistical properties to index individual differences while measures have negotiated interpretability and good statistical properties.
+
+## Strategies for Better Correlation Recovery
+
+The above recommendations center on understanding how much variability and bias there is in recovering latent correlations.  But they do not address the difficult situation head on.  How can we improve the recovery?  We consider the following possibilities:
+
+
+
+*More Trials.*  A seemingly simple solution is to run more trials per person per condition.  The usual 50 or 100 trials per task per condition is clearly not enough.  Here is a seat-of-the-pants calculation to show what might be ideal:   Suppose we wish to localize individual effects up to a maximum standard error of 10 ms.  With this value, we can calculate the number of needed trials.  If people have 200 ms of trial-level noise, and we are computing a difference score, then the standard error is $200\sqrt{2/L}$, where $L$ is the number of trials per condition per task.  Setting this standard error to 10 ms yields $L=800$, or about 1,600 trials per task per participant.  
+
+Now such a large number will assuredly prove problematic for several reasons.  Participants tire and lose motivation. The target effects themselves may attenuate with excessive numbers of trials [@Davidson.etal.2003;@Dulaney.Rogers.1994]. Researchers may not have resources to run large number of trials per individual per task, and even if the resources are available, such designs may not be practical.
+
+Still, at least from a statistical point-of-view, more trials is always better than less so long as those trials result in comparable behavior across the sessions.  Researchers using more trials do need to check for fatigue, loss of effect, loss of motivation and the like.   
+
+As an aside, we recommend researchers never run neutral conditions.  The contrast between incongruent and congruent is far more important, and performance on neutral trials do not enter into correlational structures.  Removing neutral conditions allows for larger numbers of congruent and incongruent trials.  If researchers wish to critically assess whether the neutral condition is more like the incongruent or the congruent condition, they should do so outside an individual-differences design.
+
+*Better Tasks Through Gamification.* Perhaps the most obvious solution is to search for inhibition tasks with greater individual variation.  In practice, this means engineering tasks to have large overall effects with relatively small trial noise.  One innovation in cognitive control is the use of so-called *gamified* tasks [@Kucina.etal.2022;@Deveau.etal.2015;@Wells.etal.2021].  When a task is gamified, it is made into a video game.  There may be sound, color, theme music, point scores, leaderboards, and other elements of video-game play.  There are two possible advantages of gamification.  The first is that gamified tasks may be more reliable in that they have higher signal-to-noise ratios, $\gamma$ [@Kucina.etal.2022;@Wells.etal.2021].  For example, @Wells.etal.2021 claim that the increased arousal and engagement from gamification results in more reliable data.  @Kucina.etal.2022 note that it may be possible to have combined stimulus elements in gamified settings that increase conflict effects.  The second possible advantage is that people may be willing to engage with a gamified task at a higher level for longer [@Deveau.etal.2015].  Gamification then may be an effective tactic for increasing trial size without tears. 
+
+*Combined Dependent Measures*. Another approach is to refine how we use dependent variables.  A new trend is to consider both speed and accuracy in combination through a diffusion model [@Enkavi.etal.2019; @Hedge.etal.2021; @Weigard.etal.2021].  There are two possible advantages: first, by considering speed and accuracy jointly, individual differences in the speed-accuracy tradeoff may be considered and modeled.  Second, resulting parameters such as the rate of evidence accumulation may be more sensitive and less affected by trial noise than RT or accuracy alone [@Lerche.etal.2020;@Weigard.etal.2021].  This claim, however, is controversial as @Enkavi.etal.2019 found only marginally higher reliability coefficients for drift rates vs. response time alone. 
+
+
+## Modeling Trial Noise
+
+Is it worth it to use hierarchical models to account for trial noise?  Based on this report, the answer may be "not yet."  These models lead to only marginally better localization of correlations.  Currently, the main advantage is that one can assess the degree of localization.  Hierarchical models provide a useful measure of uncertainty.  
+
+The main problem with the hierarchical models presented here is that they stop at covariance.  They do not lend themselves to latent-variable decomposition of covariance such as that in  factor models.  Researchers who adopt these trial-noise models seemingly give up the power of latent-variable modeling.  It's not a good trade.
+
+One future direction is the development of trial-level confirmatory latent-variable models.  For example, if we are interested in the basic question whether there is a unified concept of inhibition, we might develop a trial-level one-factor model or a trial-level bifactor model.  The good news here is that these models offer constraint over the Wishart priors used here.  With this constraint, it may be possible to better localize correlations among tasks.  Second, and perhaps more importantly, localization of correlations may become secondary to model assessment and model comparison.  How well does one trial-level confirmatory structure compare to another? 
+
+We are not that far from trial-level confirmatory factor models.  Key to this endeavor is the work of Merkel and colleagues [@Merkle.Rosseel.2018;@Merkle.etal.2021] who have been studying the most efficient approaches to Bayesian structural-equation modeling.  Their package `blavaan` uses `lavaan` syntax, which is well known and quite convenient.  It seems that extensions to trial noise are possible though not yet developed.
+
+## Concluding Thought
+
+We show here that it is difficult to address whether inhibition is a unified or disparate concept using individual differences with experimental tasks.  Simply put, we cannot as of yet tell if the low correlations with conventional aggregation reflect attenuation from excessive trial noise or a true lack of covariation.  Without the benefit of better methods and experiments, we offer no critique of or advocacy for extant theories of cognitive control.
+
+Solving the difficulties with tasks is going to entail larger experiments, perhaps better tasks, and perhas not-yet-developed trial-level latent-variable confirmatory models.  We hope this paper lays a foundation for understanding what is at stake and motivates the needed developments.  Although the message is disheartening in the short run, we think there is reason to be optimistic in the long run.  Given the talent in the field, individual-difference researchers are going to rise to the challenge because these solutions may well be within our grasp.
+
+\newpage
+
+# Appendix
+
+### Data Set 1, @VonBastian.etal.2015:
+The task was a number Stroop task. Participants were presented a string of digits. In each string, the digits were always replicates, say *22* or *444*, and the lengths varied from one digit to four digits. The participants identified the length of the string, for example, the correct report for *444* is 3. In the congruent condition, the length and the digits matched; e.g., *22* and *4444*.  In the incongruent condition, the length and digits mismatched, e.g., *44* and *2222*.  We used somewhat different data cleaning steps than the original authors.  Ours are described in @Haaf.Rouder.2017.
+
+### Data Set 2, @Hedge.etal.2018: 
+The task was a color Stroop task.  Participants identified the color of a centrally presented word (red, blue, green, or yellow). In the congruent condition, presentation color and word meaning matched. In the incongruent condition, they did not match.  Following @Hedge.etal.2018, we combined data from their Experiments 1 and 2.  Our cleaning steps differed from @Hedge.etal.2018 and are described in the code accompanying @Rouder.Haaf.2019.  Briefly, we discarded participants who had an error rate greater than 10%. 
+
+### Data Set 3,  @Pratte.etal.2010, Experiment 1:  
+The task was a color Stroop task. Participants identified the color of the color words, e.g. the word *RED* presented in blue. In the congruent condition, presentation color and word meaning matched, e.g. *BLUE* presented in blue. In the incongruent condition, they did not match, e.g. *RED* presented in blue.  Cleaning steps were those from the original authors as implemented in their analysis code.
+
+### Data Set 4, @Pratte.etal.2010, Experiment 2: 
+The task was a sidedness judgment Stroop task.  Participants were presented the words *LEFT* and *RIGHT*, and these were presented to the left or right of fixation. Participants identified the position of the word while ignoring the meaning of the word. A congruent trial occurred when position of the word and word meaning corresponded; an incongruent trial emerged when position and word meaning did not correspond.  Cleaning steps were those from the original authors as implemented in their analysis code.
+
+### Data Set 5, @Rey-Mermet.etal.2018:
+The task was a number Stroop task.  Participants identified the length of digit strings much like in Data Set 1.  Cleaning proceeded as follows. First, note that in the original, trials ended at 2.0 seconds even if the participant did not respond.  We call these trials *too slow*.  1. We discarded the five participants discarded by the original authors; 2. We discarded too-slow trials, error trials, and trials with RTs below .275 seconds (*too-fast* trials).  3. We discarded all participants who had more than 10% errors, who had more than 2% too-slow trials, or more than 1% too fast trials.  
+
+### Data Set 6, @Rey-Mermet.etal.2018: 
+The task was a color Stroop task. Participants identified the color of the presented words (red, blue, green, or yellow). The presentation color and word meaning matched in the congruent condition and did not match in the incongruent condition.  Cleaning steps were those from the original authors as implemented in their analysis code.
+
+
+## Data Set 7, @Whitehead.etal.2019 (Experiment 1):
+The task was a color Stroop task similar to Data Set 6.  Cleaning steps were those from the original authors as implemented in their analysis code.
+
+## Data Set 8, @Whitehead.etal.2019 (Experiment 2):
+The task was a color Stroop task similar to Data Set 6.  The ratio of congruent-to-incongruent items was 3-to-1 rather than 1-to-1.  Cleaning steps were those from the original authors as implemented in their analysis code.
+
+
+## Data Set 9, @Whitehead.etal.2019 (Experiment 3):
+The task was a color Stroop task similar to Data Set 6.  The word-to-color contingencies were manipulated to remove certain feature overlaps.  Cleaning steps were those from the original authors as implemented in their analysis code.
+
+
+### Data Set 10, @VonBastian.etal.2015:
+The task was a Simon task.  Participants were presented either a green or red circle to the left or right of fixation.  They identified the color, green or red color by pressing buttons with their left or right hand, respectively. The spatial location of the circle and of the response could be either congruent (e.g., a green circle appearing on the left) or incongruent (e.g., a green circle appearing on the right).  Cleaning steps are described in @Haaf.Rouder.2017.
+
+### Data Set 11, @Pratte.etal.2010, Experiment 1:
+The task was a Simon task almost identical to that in Data Set 10.  Participants identified the color of a square presented to the left or right of fixation by making a lateralized key response.   A congruent trial occurred when position of the square was ipsilateral correct key response.; an incongruent trial occurred when the position of the square was contralateral to the correct key response. Cleaning steps were those from the original authors as implemented in their analysis code.
+
+### Data Set 12: @Pratte.etal.2010, Experiment 2: 
+The task was a *lateral-words* Simon task.  Participants were presented the words *LEFT* and *RIGHT* to the left or right of fixation.  Participants identified the meaning of the word while ignoring the location of the word. A congruent trial occurred when position of the word and word meaning corresponded; an incongruent trial occurred when position of the word and word meaning did not match. Cleaning steps were those from the original authors as implemented in their analysis code.
+
+### Data Set 13, @Whitehead.etal.2019 (Experiment 1). 
+The task was a location Simon task similar to @Pratte.etal.2010.  Directional words UP, DOWN, LEFT, RIGHT were placed at locations.  Participants ignored the location and reported the meaning of the word.  Cleaning steps were those from the original authors as implemented in their analysis code.
+
+### Data Set 14, @Whitehead.etal.2019 (Experiment 2).  
+The task was a location Simon task similar to Data Set 13.  The ratio of congruent-to-incongruent items was 3-to-1 rather than 1-to-1.  Cleaning steps were those from the original authors as implemented in their analysis code.
+
+### Data Set 15, @Whitehead.etal.2019 (Experiment 3) 
+The task was a color Stroop task similar to Data Set 6.  The word-to-location contingencies were manipulated to remove certain feature overlaps.  Cleaning steps were those from the original authors as implemented in their analysis code.
+
+### Data Set 16, @VonBastian.etal.2015:
+The task was a letter-flanker task.  Participants were presented strings of seven letters and judged whether the center letter was a vowel (*A*, *E*) or consonant (*S*, *T*).  The congruent condition was when the surrounding letters came from the same category as the target (e.g. *AAAEAAA*); the incongruent condition was when the surrounding letters came from the opposite category of the target (e.g., *TTTETTT*).  Cleaning steps are described in @Haaf.Rouder.2017.
+
+### Data Set 17: @Hedge.etal.2018:  
+The task was an arrow flanker task almost identical to Data Set 11.   Following @Hedge.etal.2018, we combined data from their Experiments 1 and 2.  Our cleaning steps differed from @Hedge.etal.2018 and are described in @Rouder.Haaf.2019.  
+
+### Data Set 18, @Rey-Mermet.etal.2018:
+The task was an arrow flanker task.  Participants identified the direction of the central arrow (left/right) while ignoring four flanking arrows. Congruency and incongruency occurred when the center arrow matched and mismatched the direction of the flanker arrows, respectively.   Cleaning steps were the same for Data Set 5.
+
+###  Data Set 19, @Rey-Mermet.etal.2018:  
+The task was a letter-flanker task almost identical to Data Set 18.  Cleaning steps were the same for Data Set 5.
+
+
+### Data Set 20, @Whitehead.etal.2019 (Experiment 1). 
+The task was a letter flanker task where participants identified a central letter.  Cleaning steps were those from the original authors as implemented in their analysis code.
+
+### Data Set 21, @Whitehead.etal.2019 (Experiment 2).  
+The task was similar to Data Set 20.  The ratio of congruent-to-incongruent items was 3-to-1 rather than 1-to-1.  Cleaning steps were those from the original authors as implemented in their analysis code.
+
+### Data Set 22, @Whitehead.etal.2019 (Experiment 3) 
+The task was a letter flanker task similar to Data Set 20.  Target-to-distractor letter contingencies were manipulated to remove certain feature overlaps.  Cleaning steps were those from the original authors as implemented in their analysis code.
+
+### Data Set 23, @Rouder.etal.2005:
+The task was a digit-distance task.  Participants were presented digits 2, 3, 4, 6, 7, 8, and had judged whether the presented digit was less-than or greater-than five.  Digits further from five are identified faster than those close to 5.  Responses to digits 2 and 8 comprised the *far* condition; responses to digits 4 and 6 comprised the *close* condition.  The difference in conditions comprised a  *distance-from-five* effect.   Cleaning steps were those from the original authors as implemented in their analysis code.
+
+### Data Set 24, @Rouder.etal.2010b:
+The task was a grating-orientation discrimination.  Participants were presented nearly-vertical Gabor patches that were very slightly displaced to the left or right; they indicated whether the displacement was left or right.  Displacements were $\pm1.5^\circ$, $\pm2.0^\circ$, and $\pm4.0^\circ$ from vertical.  Responses from the $\pm1.5^\circ$ comprised the *hard* condition; responses from the $\pm4.0^\circ$ comprised the *easy* condition; the difference comprised a *orientation-strength* effect.   Cleaning steps were those from the original authors as implemented in their analysis code.
+
+
+\newpage
+# References
+

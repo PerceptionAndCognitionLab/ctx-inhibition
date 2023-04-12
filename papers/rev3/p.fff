@@ -1,0 +1,61 @@
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\includegraphics[width=4in]{dataAnalysis2} \caption{In the usual course of analysis, the raw data (A) are used to tabulate sample effects (B).  The covariation among these task-by-person sample effects (C) then serve as input to latent variable modeling (D).}\label{fig:usual}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\centering
+\includegraphics{p_files/figure-latex/example-1.pdf}
+\caption{\label{fig:example}The effects of trial variability on the assessment of correlations among tasks. A: Hypothetical true individual effects show a large degree of correlation across two tasks. B: Observed effects are so perturbed by trial variability that the correlation is greatly attenuated. C: Hierarchical model recovery for the data in A. D: Spearman correction-for-attenuation in a small simulation with realistic settings.}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\centering
+\includegraphics{p_files/figure-latex/theta-1.pdf}
+\caption{\label{fig:theta}A, B: Prior distributions of \(\mu_\theta\) and \(\sigma_\theta\), respectively. C: Prior distribution of \(\theta_i\) for \(\mu_\theta=50\) ms and \(\sigma_\theta=30\) ms.}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\centering
+\includegraphics{p_files/figure-latex/attenuate-1.pdf}
+\caption{\label{fig:attenuate}Attenuation of correlation as a function of number of trials (\(L\)) and signal-to-noise ratio \(\gamma\). For typical values (\(L=100\), \(\eta\)=1-to-8), the attenuation is a factor of 44. The plotted values of \(\gamma\) are 1-to-5, 1-to-6.5, 1-to-8, 1-to-9.5, and 1-to-11.}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\centering
+\includegraphics{p_files/figure-latex/recov2-1.pdf}
+\caption{\label{fig:recov2}Revocery of correlations from two tasks. A: Boxplots of recovered correlations from sample correlations, Spearman's correction, and the hierarchical model. B-D: Posterior 95\% credible intervals for the model-recovered correlations for true correlations of .2, .5, and .8, respectively.}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\centering
+\includegraphics{p_files/figure-latex/cov6-1.pdf}
+\caption{\label{fig:cov6}True and recovered correlation matrices for six tasks. A: True population correlations. B-D: Correlation estimates from a single run.}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\centering
+\includegraphics{p_files/figure-latex/recov6-1.pdf}
+\caption{\label{fig:recov6}Recovery of correlations from six tasks. True correlations are derived from a one-factor model and are displayed in Figure \ref{fig:cov6}.}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\centering
+\includegraphics{p_files/figure-latex/rm4task-1.pdf}
+\caption{\label{fig:rm4task}Correlations among select tasks in the Rey-Mermet data set. Tasks are a number Stroop task, a color Stroop task, a letter flanker task, and an arrow flanker task. Details of the tasks are provided in the Appendix.}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\centering
+\includegraphics{p_files/figure-latex/rm4taskEst-1.pdf}
+\caption{\label{fig:rm4taskEst}A. Model-based posterior distributions of population correlations among tasks. The large variance shows the difficulty of recovery. B. Individuals' sample effects for color Stroop and arrow flanker tasks show. C. Hierarchical model estimates show a large degree of shrinakge for arrow flankers but not for color Stroop reflecting the increased range of color Stroop effects.}
+\end{figure*}

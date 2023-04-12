@@ -1,0 +1,1385 @@
+---
+title             : "Why Most Studies of Individual Differences With Inhibition Tasks Are Bound To Fail"
+shorttitle        : "Individual Differences in Cognitive Tasks"
+
+author: 
+  - name          : "Jeffrey N. Rouder"
+    affiliation   : "1"
+    corresponding : yes    # Define only one corresponding author
+    address       : ""
+    email         : "jrouder@uci.edu"
+  - name          : "Aakriti Kumar"
+    affiliation   : "1"
+  - name          : "Julia M. Haaf"
+    affiliation   : "2"
+
+affiliation:
+  - id            : "1"
+    institution   : "University of California, Irvine"
+  - id            : "2"
+    institution   : "University of Amsterdam"
+
+
+author_note: We are indebted to Craig Hedge, Claudia von Bastian, and Alodie Rey-Mermet who allowed us to reuse their individual-differences data sets.  The Rmarkdown source code for this paper is available at  https://github.com/PerceptionAndCognitionLab/ctx-inhibition/papers/problem.  This source code contains links to all data sets, all analyzes, and code for drawing the figures and typesetting the paper.  
+
+note: Version 2, 6/2019
+
+abstract: "Establishing correlations among common inhibition tasks such as Stroop or flanker tasks has been proven quite difficult despite many attempts.  It remains unknown whether this difficulty occurs because inhibition is a disparate set of phenomena or whether the analytical techiques to uncover a unified inhibition phenomenon fail in real-world contexts.  In this paper, we explore the field-wide inability to assess whether inhibition is unified or disparate. We do so by showing that ordinary methods of correlating performance including those with latent variable models are doomed to fail because of trial noise (or, as it is sometimes called, measurement error).  We then develop hierarchical models that account for variation across trials, variation across individuals, and covariation across individuals and tasks.  These hierarchical models also fail to uncover correlations in typical designs for the same reasons.  While we can charaterize the degree of trial noise, we cannot recover correlations in typical designs that enroll hundreds of people.  We discuss possible improvements to study designs to help uncovering correlations, though we are not sure how feasible they are."
+
+
+  
+keywords          : "Individual Differences, Cognitive Tasks, Hierarchical Models, Bayesian Inference"
+
+bibliography      : ["lab.bib"]
+
+header-includes   :
+   - \usepackage{bm}
+   - \usepackage{amsmath}
+   - \usepackage{setspace}
+   - \usepackage{pcl}
+   - \usepackage{marginnote}
+   - \newcommand{\readme}[1]{\emph{\marginnote{Julia} (#1)}}
+
+figsintext        : no
+figurelist        : no
+tablelist         : no
+footnotelist      : no
+lineno            : no
+
+lang              : "english"
+class             : "man"
+output            : papaja::apa6_pdf
+csl               : apa6.csl
+---
+
+```{r, simSettings}
+typical=list(
+  I=200, #ppl
+  L=100, # reps
+  alpha.var=.2^2,
+  theta.var=.025^2,
+  s2=.175^2)
+
+typical2=list(
+  I=200, #ppl
+  L=100, # reps
+  alpha.var=.2^2,
+  theta.var=.02^2,
+  s2=.200^2)
+
+priorOne=list(
+  s2.a=.5,
+  s2.b=.5, #this does not get squared.
+  a0=2,
+  b0=.03, #this gets squared, in seconds.
+  mu.theta.m=.05,
+  mu.theta.v=.1^2
+)
+```
+
+```{r runs}
+sim2Flag=F
+sim6Flag=F
+runrm4Flag=F
+```
+
+
+```{r libraries,echo=FALSE,message=FALSE,warnings=FALSE,include=F}
+library('MCMCpack')
+library('papaja')
+library(mvtnorm)
+library(curl)
+library(jpeg)
+library(rstan)
+library(corrplot)
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+rstan_options(auto_write = TRUE)
+set.seed(123)
+source('lib.R')
+```
+
+
+
+In the past two decades, it has become popular to include experimental tasks in studies of individual differences. This is particularly salient in the study of individual differences in inhibition where studies often include experimental tasks such as the Stroop task [@Stroop:1935], the Simon task [@Simon:1968], and the Flanker task [@Eriksen:Eriksen:1974].  On the face of it, individual-difference researchers should be sanguine about using such tasks for the following five reasons:  First, many of these tasks are designed to isolate a specific cognitive process such as inhibition by contrasting specific conditions.  For example, in the Stroop task, the score is the contrast between incongruent and congruent items.  The subtraction inherent in the contrast controls for unrelated sources of variation such as overall speed.  Second, many of these tasks are robust in that the effects are easy to obtain in a variety of circumstances.  Take again, for example, the Stroop task.  The Stroop effect is so robust that it is considered universal [@MacLeod:1991].  Third, because these tasks are laboratory based and center on experimenter-controlled manipulations, they often have a high degree of internal validity. Fourth, because these tasks are used so often, there is usually a large literature about them to guide implementation and interpretation.  Fifth, task scores are relatively easy to collect and analyze with latent-variable models.  
+
+
+Figure \ref{fig:usual} shows the usual course of analysis in individual-difference research with cognitive tasks.  There are raw data (Panel A), which are quite numerous, often on the order of hundreds of thousands of observations.  These are cleaned, and to start the analysis, a task scores for each participant are tabulated (Panel B).  For example, if Task 1 is a Stroop task, then the task scores would be each individual's Stroop effect, that is, the difference between the mean RT for incongruent and congruent conditions.  A typical task score is a difference of conditions, and might be in the 10s of milliseconds range.  The table of individual task scores is treated as a multivariate distribution, and the covariation of this distribution (Panel C) is decomposed into meaningful sources of variation through latent variable models [Panel D; e.g., @Bollen:1989;@Skrondal:Rabe-Hesketh:2004].  
+
+There is a wrench, however, in the setup.  Unfortunately, scores from experimental tasks correlate with one another far less than one might think *a priori.*  An example is the lack of correlation among the Stroop task and the flanker task.  While @Friedman:Miyake:2004 found a healthy correlation of .18 between the tasks; subsequent large-scale studies from @Hedge:etal:2018, @Pettigrew:Martin:2014, @ReyMermet:etal:2018 and @vonBastian:etal:2015 have found correlations that range from -.09 to .03, and average -.03 in value.  The near-zero value of correlation between these two tasks is not an outlier.  As a rule, effects in inhibition tasks show surprisingly low correlations [@ReyMermet:etal:2018]. And the low correlations are not limited to inhibition tasks.  @Ito:etal:2015 considered several implicit attitude tasks used for measuring implicit bias.  Here again, there is surprisingly little correlation among tasks that purportedly measure the same concept.  This lack of correlation may also be seen in latent variable analyses. Factor loadings from latent variables to tasks are often dominated by a single task indicating that there is little covariation to decompose [@MacKillop:etal:2016].
+
+```{r usual,fig.cap="In the usual course of analysis, the raw data (A) are used to tabulate sample effects (B).  The covariation among these task-by-person sample effects (C) then serve as input to latent variable modeling (D).", out.width="4in"}
+knitr::include_graphics("dataAnalysis2.jpg",dpi=100)
+```
+
+```{r oneRun2, cache=T}
+out=sim2(typical,trueCor=.8)
+dat=out$dat
+mrt=tapply(dat$rt,list(dat$sub,dat$task,dat$cond),mean)
+effect=mrt[,,2]-mrt[,,1]
+mod=genModWish2(dat,M=300)
+R=200
+spearCor=1:R
+for (r in 1:R){
+  out=sim2(typical,trueCor=.8)
+  dat=out$dat
+  spearCor[r]=spearman(dat)[1,2]}
+```
+
+```{r attenuate, fig.cap="The effects of trial variability on the assessment of correlations among tasks.  A: Hypothetical true individual effects show a large degree of correlation across two tasks.  B: Observed effects are so perturbed by trial variability that the correlation is greatly attenuated.  C: Hierarchical model recovery for the data in A.  D: Spearman correction-for-attenuation in a small simulation with realistic settings.",fig.asp=1.1}
+
+mod.est=apply(mod$theta,c(2,3),mean)
+
+par(mfrow=c(2,2),mgp=c(2,1,0),mar=c(4,4,1.5,1))
+par(pty="s")
+plot(1000*out$t.theta,typ='n',
+     xlab="True Effect in Task 1 (ms)",
+     ylab="True Effect in Task 2 (ms)"
+     , bty = "n"
+     , ylim = c(10, 130)
+     , xlim = c(10, 130))
+abline(0,1,lty=2)
+points(1000*out$t.theta,pch=21,bg='green',cex=.8)
+true.cor=cor(out$t.theta)[1,2]
+text(110,30,paste("r=",round(true.cor,2),sep=""))
+mtext(side=3,adj=0,cex=1.2,"A.")
+
+par(pty="s")
+plot(1000*effect,typ='n',
+     xlab="Observed Effect in Task 1 (ms)",
+     ylab="Observed Effect in Task 2 (ms)"
+     , bty = "n"
+     , ylim = c(-50, 170)
+     , xlim = c(-50, 170))
+abline(0,1,lty=2)
+points(1000*effect,pch=21,bg='yellow',cex=.8)
+mtext(side=3,adj=0,cex=1.2,"B.")
+obs.cor=cor(effect)[1,2]
+text(120,-25,paste("r=",round(obs.cor,2),sep=""))
+
+plot(1000*mod.est,typ='n',
+     xlab="Observed Effect in Task 1 (ms)",
+     ylab="Observed Effect in Task 2 (ms)"
+     , bty = "n"
+     , ylim = c(0, 110)
+     , xlim = c(0, 110))
+abline(0,1,lty=2)
+points(1000*mod.est,pch=21,bg='red',cex=.8)
+mod.cor=cor(mod.est)[1,2]
+text(100,20,paste("r=",round(mod.cor,2),sep=""))
+
+mtext(side=3,adj=0,cex=1.2,"C.")
+
+
+hist(spearCor,breaks=50,prob=T,col='grey90',xlim=c(0,2),
+     axes=F,main="",ylab="",
+     xlab="Spearman-Corrected Correlation")
+axis(1)
+mtext(side=3,adj=0,cex=1.2,"D.")
+
+par(pty = "m")
+```
+
+```{r cache=T}
+M=2000
+spearCor=1:M
+for (m in 1:M){
+out=sim2(typical,trueCor=.8)
+dat=out$dat
+spearCor[m]=spearman(dat)[1,2]}
+```
+
+The main question is, "why are these correlations so low?"  On one hand, they could reflect underlying true task performance that is uncorrelated or weakly correlated.  In this case, the low correlations indicate that performance on the tasks do not largely overlap, and that the tasks are indexing different mental processes.  Indeed, this substantive interpretation is taken by @ReyMermet:etal:2018, who argue that inhibition should be viewed as a disparate rather than unified concept.  By extension, different tasks rely on different and disparate inhibition processes.   
+
+On the other hand, the true correlations could be large but masked by measurement error.  A realistic example is provided in Figure \ref{fig:attenuate}.  Shown in Panel A are *true  difference scores* (or true effects) for 200 individuals on two tasks.  The plot is a scatter plot---each point is for an individual; the x-axis value is the true score on one task, the y-axis value is the true score on the other task.  As can be seen, there is a large correlation, in this case it is `r round(true.cor,2)`. 
+Researchers do not observe these true scores; instead they analyze difference scores from noisy trial data with the tabulation shown in Figure\ \ref{fig:usual}. Figure \ref{fig:attenuate}B shows the scatterplot of these observed difference scores (or observed effects). Because these observed effects reflect trial-by-trial noise, the correlation is attenuated. In this case it is `r round(obs.cor,2)`.  While this correlation is statistically detectable, the observed value is dramatically lower than the true one.  Moreover, in simulations with less pronounced true correlations, observed correlations are often undetectable and sometimes reversed.  
+
+The amount of attenuation of the correlation is dependent on critical inputs such as the number of trials and the degree of trial-to-trial variability.  Therefore, to get a realistic picture of the effects of measurement error it is critical to obtain realistic values for these inputs.  In this paper, we survey 15 fairly large inhibition studies.  From this survey, presented here subsequently, we derive typical values for the number of trials and the degree of trial-to-trial variability.  These typical values are used in Figure\ \ref{fig:attenuate}, and the amount of attenuation of the correlation therefore represents a typical rather than a worst-case scenario.
+
+# Measurement Error and Latent Variable Analysis
+
+The amount of attenuation shown in Figure\ \ref{fig:attenuate}, from `r round(true.cor,2)` to `r round(obs.cor,2)`, is shocking.  No wonder it has been so hard to find correlations.  We worry that the common approach of using latent variables to decompose correlations has been more of a distraction than a fruitful approach if only because there is very little covariation to decompose without attention to measurement error.
+
+Most studies follow the analytic workflow in Figure \ref{fig:usual}, and in the process of forming participant-by-task-score tables (Panel B), ignore the detrimental effects of trial-to-trial variability.  It may seem like not much can be done.  After all, we computed the correlation among sample scores.  The sample scores are the difference between sample effects, and it may seem hard to improve on the well-known formulas for mean and correlation.
+
+Yet, data from tasks have a hierarchical structure.  Trials are nested in conditions and participants who are crossed with task.  Sample effects by themselves do not capture trial-to-trial variability, which, in our experience, is the largest source of variability in these designs.  One solution is to extend latent variable models down to the trial level [@Rouder:Haaf:2019a].  By proposing hierarchical models, trial-by-trial variation may be modeled and, perhaps, removed in estimating correlations.  The latent-variable approach then becomes simultaneously a means of decomposing variability among tasks and of disattenuating the effects of measurement noise. Figure \ref{fig:attenuate}C shows cause for optimism.  A hierarchical model discussed subsequently was applied to the data in \ref{fig:attenuate}B, and the resulting posterior estimates of participants' inhibition in the tasks shows the strong correlation unmitigated by measurement noise.  While the demonstration in \ref{fig:attenuate}C certainly breeds confidence, it will not be sufficient.  We show here that the hierarchical model recovers only high true correlations well.  When the true correlation is lower, the estimates from hierarchical models are too imprecise to be useful in typical study designs.
+
+To foreshadow, we suspect that in general hierarchical models are useful for characterizing the overall degree of measurement noise but are not nearly as useful in recovering the latent correlations.  To our knowledge, there is no means of recovering these latent correlations to any degree of acceptable precision.  The sad implication is that most individual-difference research with experimental tasks is doomed to fail as one cannot describe adequately the underlying structure of covariation across tasks. Through simulation and model analysis, we broach this difficult question---despite the vast investment of time and money in such studies---are typical individual difference studies with experimental tasks doomed to fail?
+
+Before continuing, we note that we had previously promoted the benefits of extending hierarchical models down to the trial-by-trial level [@Rouder:Haaf:2019a].  We had applied a hierarchical model to a single study, from @Hedge:etal:2018, which had over 1,400 trials per task.  We were able to show the value of the hierarchical approach in characterizing measurement noise, but we never simulated with known true values.  Hence, we could not comment on the model's ability to accurately recover correlations.  More to the point, we did not imagine then that the model would perform so poorly in simulation.  We remain shocked and saddened at the depressing results we present here.  This paper is not at all the story we had hoped for, but it is still a critical story for the community of individual-differences scholars to digest. 
+
+# Spearman's Correction for Attenuation
+
+Before addressing the main question about recovery, we consider the @Spearman:1904a correction for the attenuation of correlation from measurement noise.  In this brief detour, we assess whether Spearman's correction leads to the recovery of latent correlations among tasks in typical designs.  The assessment provides guidance because the data generation in simulations match well with the assumptions in Spearman's correction.  If Spearman's correction cannot recover the latent correlations, these correlations may indeed be unrecoverable.
+
+Spearman's derivation comes from decomposing observed variation into true variation and  measurement noise.  When reliabilities are low, correlations may be upweighted to account for them.  In Spearman's classic formula, the disattenuated correlation, denoted $r'_{xy}$ between two variables $x$ and $y$ is
+\[
+r'_{xy} = \frac{r_{xy}}{\sqrt{r_{xx}r_{yy}}},
+\]
+where $r_{xy}$ is the sample correlation and $r_{xx}$ and $r_{yy}$ are the sample reliabilities.[^samp.rel] 
+
+[^samp.rel]: The estimation of reliability in tasks is different than the estimation of reliability in a classical test because there are replicates within people and conditions in tasks.  The presence of these replicates may be leveraged to produce better estimates of error variability than when they are not present.  Let $\bar{Y}_{ik}$ and $s_{\bar{y}_{ik}}$ be the sample mean and sample standard error for the $i$th individual in the $k$th condition, $k=1,2$.  Let $d_{i}=\bar{Y}_{i2}-\bar{Y}_{i1}$ be the effect for the $i$th individual, and let $V_d$ be the sample variance of these effects.  This sample variable is the total variance to be decomposed into true and error variances.  Assuming an equal number of trials per condition, the error variance for the $i$th person, denoted $V_{ei}$ is $s^2_{\bar{y}_{i1}}+s^2_{\bar{y}_{i2}}$.  The estimate of error variance is simply the average of these individual error variances, or $V_e=\sum_i\sum_k s_{\bar{y}_{ik}}^2/I$.  The reliability is $r=(V_d-V_e)/V_d$.
+
+Spearman's correction, while well known, is not used often.  The problem is that it is unstable.  Panel C of Figure \ref{fig:attenuate} shows the results of a small simulation based on realistic values from inhibition tasks discussed subsequently.  The true correlation is .80.  The Spearman-corrected correlations, however, are not only variable ranging from `r round(min(spearCor), 2)` to `r round(max(spearCor), 2)`, but not restricted to valid ranges.  In fact, `r 100*round(mean(spearCor>1),3)`% of the simulated values are greater than 1.0.   We should take these problems with Spearman's correction seriously.  The poor results in  Figure \ref{fig:attenuate} may indicate that in low-reliability environments, true correlations among tasks may not be recoverable.  And this lack of recoverability may be fundamental---measurement noise may destroy the correlation signatures.
+
+In the next section, we analyze existing data sets to find appropriate settings for simulations.  These settings include sample sizes and estimates of the amount of variability we may reasonably expect across trials and across individuals.  With these settings established, we simulate data and assess whether correlations are recoverable. The hierarchical latent correlation estimators, while far from perfect, are better than Spearman-corrected correlation estimators.  Subsequently, we apply the same analysis to a large data set from @ReyMermet:etal:2018 spanning four inhibition tasks to assess whether the observed low correlations reflect independent task performance or attenuation from trial noise.  As many researchers before us, even with hierarchical modeling we have a difficult time answering this question.
+
+# Variability in Experimental Tasks
+
+```{r oneTaskFunctions,echo=F}
+
+sdComps=function(chains){
+  s=mean(sqrt(chains$s2))
+  s.a=sqrt(mean(chains$s2))
+  st1=mean(apply(chains$theta,1,sd))
+  st2=mean(sqrt(chains$s2Theta))
+  st2.a=sqrt(mean(chains$s2Theta))
+  st3=sd(apply(chains$theta,2,mean))
+  g=mean(sqrt(chains$s2Theta/chains$s2))
+  mu=mean(apply(chains$theta,1,mean))
+  out=c(mu,s,st1,st2,g,chains$I,chains$N)
+  names(out)=c('mu','std','stdTheta.proc','stdTheta.par','g','Nind','Nobs')
+  return(out)
+}
+
+
+effectSD=function(dat){
+  	if (mean(dat$cond %in% 1:2)<1) stop("Conditions must be 1 and 2")
+	sub=as.integer(as.factor(dat$sub))
+	I=max(sub)
+	N=dim(dat)[1]
+	mrt=tapply(dat$rt,list(dat$sub,dat$cond),mean)
+	sample.effect=mrt[,2]-mrt[,1]
+  return(sd(sample.effect)) 
+}
+```
+
+```{r vbStroop,echo=F,cache=T}
+
+filename <- curl("https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/inhibitionTasks/vonBastianJEPG2015/LEF_stroop.csv")
+stroop <- read.csv2(filename, header=TRUE, dec=".")
+
+stroop$cond <- as.numeric(stroop$congruency)  #congruent -> 1, incongruent -> 2, neutral -> 3
+ntrial <- length(stroop[stroop$ID == stroop$ID[1], 1])
+nsub <- length(unique(stroop$ID))
+stroop$trial <- rep(1:ntrial, nsub)
+stroop$rt <- stroop$RT/1000 #rt data in seconds
+
+stroop <- stroop[stroop$rt > .2 & stroop$rt < 2, ]
+stroop <- subset(stroop, accuracy == 1 & cond != 3)
+
+dat=data.frame(stroop$ID,stroop$cond,stroop$rt)
+colnames(dat)=c('sub','cond','rt')
+
+vb.stroop=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+```
+
+```{r vbSimon, echo=F,cache=T}
+
+filename <- curl("https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/inhibitionTasks/vonBastianJEPG2015/LEF_simon.csv")
+simon <- read.csv2(filename, header=TRUE, dec=".")
+
+simon$cond <- as.numeric(simon$congruency)  #congruent -> 1, incongruent -> 2, neutral -> 3
+ntrial <- length(simon[simon$ID == simon$ID[1], 1])
+nsub <- length(unique(simon$ID))
+simon$trial <- rep(1:ntrial, nsub)
+simon$rt <- simon$RT/1000
+
+simon <- simon[simon$rt > .2 & simon$rt < 2, ]
+simon <- subset(simon, accuracy == 1)
+
+dat=data.frame(simon$ID,simon$cond,simon$rt)
+colnames(dat)=c('sub','cond','rt')
+
+vb.simon=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+```
+
+```{r vbFlanker, echo=F,cache=T}
+filename <- curl("https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/inhibitionTasks/vonBastianJEPG2015/LEF_flanker.csv")
+flanker <- read.csv2(filename, header=TRUE, dec=".")
+
+flanker$cond <- as.numeric(flanker$congruency)  #congruent -> 1, incongruent -> 2, neutral -> 3
+ntrial <- length(flanker[flanker$ID == flanker$ID[1], 1])
+nsub <- length(unique(flanker$ID))
+flanker$trial <- rep(1:ntrial, nsub)
+flanker$rt <- flanker$RT/1000
+
+flanker <- flanker[flanker$rt > .2 & flanker$rt < 2, ]
+flanker <- subset(flanker, accuracy == 1 & cond != 3)
+
+dat=data.frame(flanker$ID,flanker$cond,flanker$rt)
+colnames(dat)=c('sub','cond','rt')
+
+vb.flanker=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+```
+
+```{r pratteStroop1,echo=F,cache=T}
+filename <- curl("https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/inhibitionTasks/PratteAPP2010/allsi2.dat")
+clnames <- c('exp'
+             , 'sub'
+             , 'blk'
+             , 'trial'
+             , 'color'
+             , 'distract'
+             , 'cond'
+             , 'resp'
+             , 'acc'
+             , 'rt'
+             , 'errorTotal')
+
+dat <- read.table(filename)
+colnames(dat) <- clnames
+
+#clean rt data as proposed in Pratte et al., 2010
+dat <- dat[dat$rt > .2 & dat$rt < 2, ] #Delete very slow and very fast responses
+dat <- subset(dat, acc == 1 & cond != 2 & exp == 1) #accurate data, deleting neutral condition, only stroop task data
+tmp <- dat[!(dat$trial %in% 0:4), ] #Delete first 5 trials in each block
+
+dat=data.frame(tmp$sub,2-tmp$cond,tmp$rt)
+colnames(dat)=c('sub','cond','rt')
+
+pratte.stroop1=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+```
+
+```{r pratteStroop2,echo=F,cache=T}
+filename <- curl("https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/inhibitionTasks/PratteAPP2010/allsi7.dat")
+clnames <- c('sub'
+             ,'blk'
+             ,'blktype'
+             ,'trial'
+             ,'word'
+             ,'location'
+             ,'cond'
+             ,'resp'
+             ,'acc'
+             ,'rt'
+             ,'errorTotal')
+
+dat <- read.table(filename)
+colnames(dat) <- clnames
+
+#clean rt data as proposed in Pratte et al., 2010
+#only congruent & incongruent condition and only stroop data
+dat <- dat[dat$rt > .2 & dat$rt < 2, ]
+dat <- subset(dat, acc == 1 & blktype == 1) #Only accurate data, only data from Stroop task
+tmp <- dat[!(dat$trial %in% 0:4), ]
+dat=data.frame(tmp$sub,2-tmp$cond,tmp$rt)
+colnames(dat)=c('sub','cond','rt')
+
+pratte.stroop2=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+```
+
+```{r pratteSimon1,echo=F,cache=T}
+
+filename <- curl("https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/inhibitionTasks/PratteAPP2010/allsi2.dat")
+clnames <- c('exp'
+             , 'sub'
+             , 'blk'
+             , 'trial'
+             , 'color'
+             , 'distract'
+             , 'cond'
+             , 'resp'
+             , 'acc'
+             , 'rt'
+             , 'errorTotal')
+
+dat <- read.table(filename)
+colnames(dat) <- clnames
+
+#clean rt data as proposed in Pratte et al., 2010
+#only congruent & incongruent condition and only stroop data
+dat <- dat[dat$rt > .2 & dat$rt < 2, ]
+dat <- subset(dat, acc == 1 & exp == 0) #accurate data, only simon task data
+tmp <- dat[!(dat$trial %in% 0:4), ]
+dat=data.frame(tmp$sub,2-tmp$cond,tmp$rt)
+colnames(dat)=c('sub','cond','rt')
+
+
+pratte.simon1=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+```
+
+```{r pratteSimon2,echo=F,cache=T}
+filename <- curl("https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/inhibitionTasks/PratteAPP2010/allsi7.dat")
+clnames <- c('sub'
+             ,'blk'
+             ,'blktype'
+             ,'trial'
+             ,'word'
+             ,'location'
+             ,'cond'
+             ,'resp'
+             ,'acc'
+             ,'rt'
+             ,'errorTotal')
+
+dat <- read.table(filename)
+colnames(dat) <- clnames
+
+#clean rt data as proposed in Pratte et al., 2010
+#only congruent & incongruent condition and only stroop data
+dat <- dat[dat$rt > .2 & dat$rt < 2, ]
+dat <- subset(dat, acc == 1 & blktype == 0) #accurate data, only simon task data
+tmp <- dat[!(dat$trial %in% 0:4), ]
+dat=data.frame(tmp$sub,2-tmp$cond,tmp$rt)
+colnames(dat)=c('sub','cond','rt')
+
+pratte.simon2=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+```
+
+```{r rm,cache=T}
+source('..//..//shared//libRM.R')
+stroopCols=c(1,3,11,12,14,15,18,20)
+#numStroop=readData("..//..//dev//rey-mermet//form1//numberstroop//",stroopCols)
+#write.table(numStroop,file="//Users//jeff//git//data-others//rey-mermet//numStroop.dat",row.names = F,quote = F)
+numStroop=read.table("https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/inhibitionTasks/ReyMermetJEPLMC2018/merged/numStroop.dat",head=T)
+a3=cleanData(numStroop)
+numStroop=a3[a3$acc==1,]
+numStroop$cond=as.integer(as.factor(numStroop$cond))
+dat=numStroop[numStroop$cond %in% 1:2,]
+
+rm.numStroop=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+
+#colStroop=readData("..//..//dev//rey-mermet//form2//colorstroop//",stroopCols)
+#write.table(colStroop,file="//Users//jeff//git//data-others//rey-mermet//colStroop.dat",row.names = F,quote = F)
+colStroop=read.table("https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/inhibitionTasks/ReyMermetJEPLMC2018/merged/colStroop.dat",head=T)
+a3=cleanData(colStroop)
+colStroop=a3[a3$acc==1,]
+colStroop$cond=as.integer(as.factor(colStroop$cond))
+dat=colStroop[colStroop$cond %in% 1:2,]
+
+rm.colStroop=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+
+#letFlanker=readData("..//..//dev//rey-mermet//form1//letterFlanker//",stroopCols)
+#write.table(letFlanker,file="//Users//jeff//git//data-others//rey-mermet//letFlanker.dat",row.names = F,quote = T)
+letFlanker=read.table("https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/inhibitionTasks/ReyMermetJEPLMC2018/merged/letFlanker.dat",head=T)
+a3=cleanData(letFlanker)
+letFlanker=a3[a3$acc==1,]
+letFlanker$cond=as.integer(as.factor(letFlanker$cond))
+dat=letFlanker[letFlanker$cond %in% 1:2,]
+
+rm.letFlanker=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+
+#arrowFlanker=readData("..//..//dev//rey-mermet//form2//arrowFlanker//",stroopCols)
+#write.table(arrowFlanker,file="//Users//jeff//git//data-others//rey-mermet//arrowFlanker.dat",row.names = F,quote = F)
+arrowFlanker=read.table("https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/inhibitionTasks/ReyMermetJEPLMC2018/merged/arrowFlanker.dat",head=T)
+a3=cleanData(arrowFlanker)
+arrowFlanker=a3[a3$acc==1,]
+arrowFlanker$cond=as.integer(as.factor(arrowFlanker$cond))
+dat=arrowFlanker[arrowFlanker$cond %in% 1:2,]
+
+rm.arrowFlanker=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+```
+
+```{r hedge,cache=T,echo=F}
+dat=read.table('../../shared/flankerClean.dat',head=T)
+hedge.flanker=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+
+dat=read.table('../../shared/stroopClean.dat',head=T)
+hedge.stroop=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+```
+
+```{r RouderOther,cache=T,echo=F}
+
+indat=read.table(url('https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/lexDec-dist5/ld5.all'))
+colnames(indat)=c('sub','block','trial','stim','resp','rt','error')
+
+bad1=indat$sub%in%c(34,43)
+bad2=indat$rt<250 | indat$rt>2000
+bad3=indat$err==1
+bad4=indat$block==0 & indat$trial<20
+bad5=indat$trial==0
+
+bad=bad1 | bad2 | bad3 |bad4 |bad5
+tmp=indat[!bad,]
+cond=rep(0,length(tmp$stim))
+cond[tmp$stim==0 | tmp$stim==5]=1
+cond[tmp$stim==2 | tmp$stim==3]=2
+dat=data.frame(tmp$sub[cond>0],cond[cond>0],tmp$rt[cond>0])
+colnames(dat)=c('sub','cond','rt')
+dat$rt=dat$rt/1000
+rouder.lexdec=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+
+
+upper=5
+lower=.2
+
+dat=read.table('../../shared/rouder.2010.orientation.dat')
+colnames(dat)=c('sub','block','trial','trialB','cond','resp','rt','acc')
+#codes
+#resp: 0=left, 1=right
+#acc: 0=error, 1=correct
+#cond: 0 easiest left, 2 is hardest left, 3 hardest right, 5 easiest right
+
+
+#dat$mycond is ordered from easiest to hardest condition
+#mycond=easy(r,g), med(r,g), hard(r,g)
+dat$mycond=NA
+dat$mycond[dat$cond==5]=1
+dat$mycond[dat$cond==0]=2
+dat$mycond[dat$cond==4]=3
+dat$mycond[dat$cond==1]=4
+dat$mycond[dat$cond==3]=5
+dat$mycond[dat$cond==2]=6
+
+
+dat$sub=as.integer(as.factor(dat$sub))
+I=length(levels(as.factor(dat$sub))) #Number of Subs.
+
+
+#Wrong-button responses
+wrong.button=dat$resp>1
+error=dat$acc==0
+stop=wrong.button | dat$trialB==0 |error
+after.stop=c(0,stop)[1:length(stop)]
+a=dat$rt<lower
+b=dat$rt>upper
+dont.use=stop | after.stop |a |b
+clean=dat[!dont.use,]
+
+ct=clean[clean$block>2,]
+cond=rep(0,length(ct$cond))
+cond[ct$cond==0 | ct$cond==5]=1
+cond[ct$cond==2 | ct$cond==3]=2
+
+dat=data.frame(ct$sub[cond>0],cond[cond>0],ct$rt[cond>0])
+colnames(dat)=c('sub','cond','rt')
+
+rouder.orient=c(sdComps(genModOneTask(dat)),reliability(dat),split.rel(dat),effectSD(dat))
+```
+
+To explore whether it is possible to recover correlations in typical designs, it is important to understand not only typical sample sizes, but typical ranges of variability. To estimate within-trial and across-individual variabilities, we us an ordinary variance-components hierarchical model.  To truly appreciate how variation can be assessed, the models need to be fully specified rather than left to short-hand.  Let $Y_{ijk\ell}$ be the $\ell$th response for the $i$th individual in the $j$th task and $k$th condition.  In this section we analyze each task independently, so we may safely ignore $j$, the task subscript (we will use it subsequently, however). The model for one task is:
+\[
+Y_{ik\ell} \sim \mbox{Normal}(\alpha_i+x_k\theta_i,\sigma^2),
+\]
+where $\alpha_i$ is the $i$th individual's true response time in the congruent condition, $x_k=0,1$ codes for the incongruent condition, $\theta_i$ is the $i$th individual's true effect, and $\sigma^2$ is the trial noise within an individual-by-condition cell.  The critical target are the $\theta_i$s, and these are modeled as random effects: 
+\[
+\theta_i \sim \mbox{Normal}(\mu_\theta,\sigma^2_\theta),
+\]
+where $\mu_\theta$ describes the overall mean effect and $\sigma^2_\theta$ is the between-person variation in individuals' true effects.  Our targets then are within cell variance, $\sigma^2$, and between-individual variance, $\sigma^2_\theta$.
+
+To analyze the model priors are needed for all parameters.  Our strategy is to chose scientifically-informed priors [@Dienes:Mclatchie:2018;@Etz:etal:2018;@Rouder:etal:2016b;@Vanpaemel:Lee:2012] that anticipate the overall scale of the data. The parameters on baseline response times, in seconds, are  $\alpha_i \sim \mbox{Normal}(.8,1)$.  These priors are quite broad and place no substantive constraints on the data other than baselines are somewhere around 800 ms plus or minus 2000 ms.  The prior on variability is $\sigma^2 \sim \mbox{Inverse Gamma}(.1,.1)$, where the inverse gamma is parameterized with shape and scale parameters [@Rouder:Lu:2005].  This prior, too, is broad and places no substantive constraint on data.  Priors for $\mu_\theta$ and $\sigma^2_\theta$ were informed by the empirical observation that typical inhibition effects are in the range of 10 ms to 100 ms.  They were $\mu_\theta \sim \mbox{Normal}(50, 100^2 )$ and $\sigma^2_\theta \sim \mbox{Inverse Gamma}(2,30^2)$, where the values are in  milliseconds rather than seconds.  A graph of these prior settings for $\mu$ and $\sigma_\theta=\sqrt{\sigma^2_\theta}$ is shown in Figure \ref{fig:theta}.  These priors make the substantive assumption that effects are relatively small and are not arbitrarily variable across people.  The scale setting on $\sigma^2_\theta$ is important as it controls the amount of regularization in the model, and the choice of 30 (on the ms scale) is scientifically informed [see @Haaf:Rouder:2017].
+
+```{r theta,fig.asp=.33,fig.cap="A, B: Prior distributions of $\\mu_\\theta$ and $\\sigma_\\theta$, respectively.  C: Prior distribution of $\\theta_i$ for $\\mu_\\theta=50$ ms and $\\sigma_\\theta=30$ ms."}
+
+par(mfrow=c(1,3),mgp=c(2,1,0),mar=c(4,1,1.5,1),cex=.9)
+ms=seq(-300,400,1)
+m=priorOne$mu.theta.m*1000
+sd=sqrt(priorOne$mu.theta.v)*1000
+plot(typ='l',axes=F,ms,dnorm(ms,m,sd),
+     xlab=expression(paste("Mean Effect ",mu[theta]," (ms)")),
+     ylab="",lwd=1)
+abline(v=0)
+axis(1)
+mtext(side=3,adj=0,"A.",cex=1.1)
+
+ds.ig=function(s,a,b)  2*s*dinvgamma(s^2,shape=a,scale=b)
+  
+s=seq(0,100,.1)
+plot(s,ds.ig(s,2,30^2),typ='l',axes=F,
+     xlab=expression(paste("Std Dev Effect ",sigma[theta]," (ms)")),
+     ylab="",lwd=1)
+axis(1)
+mtext(side=3,adj=0,"B.",cex=1.1)
+
+m=50
+scale=30
+z=seq(-3,3,.01)
+eff=z*scale+m
+plot(typ='l',axes=F,eff,dnorm(eff,m,scale),
+     xlab=expression(paste("Individual Effect ",theta[i]," (ms)")),
+     ylab="",lwd=1)
+abline(v=0)
+axis(1,at=seq(-100,150,50))
+mtext(side=3,adj=0,"C.",cex=1.1)
+```
+
+```{r makeTable,results='asis'}
+tab1=rbind(
+  vb.stroop,
+  pratte.stroop1,
+  pratte.stroop2,
+  rm.numStroop,
+  rm.colStroop,
+  hedge.stroop,
+  vb.simon,
+  pratte.simon1,
+  pratte.simon2,
+  vb.flanker,
+  rm.letFlanker,
+  rm.arrowFlanker,
+  hedge.flanker,
+  rouder.lexdec,
+  rouder.orient)
+tab0=cbind(tab1[,c(7,6)],tab1[,7]/(2*tab1[,6]),tab1[,8],tab1[,9],tab1[,1]*1000,tab1[,10]*1000,tab1[,2]*1000,tab1[,4]*1000)
+
+
+mn=apply(tab0,2,mean)
+md=apply(tab0,2,median)
+tab=rbind(tab0,mn,md)
+rownames(tab)=c("1. von Bastian",
+                 "2. Pratte i",
+                 "3. Pratte ii",
+                 "4. Rey-Mermet i",
+                 "5. Rey-Mermet ii",
+                 "6. Hedge",
+                 "7. von Bastian",
+                 "8. Pratte i",
+                 "9. Pratte ii",
+                 "10. von Bastian",
+                 "11. Rey-Mermet i",
+                 "12. Rey-Mermet ii",
+                 "13. Hedge",
+                 "14. Rouder i",
+                 "15. Rouder ii",
+                 "Mean","Median")
+colnames(tab)=c("Obs",
+            "Indv",
+            "Rep",
+            "Full","Split",
+            "Effect",
+            '$s_d$',
+            '$\\hat{\\sigma}$',
+            '$\\hat{\\sigma}_{\\theta}$')
+apa_table(tab
+          ,digits=c(0,0,0,0,2,2,0,0)
+          ,format.args = list(margin=2)
+          , col_spanners = list("Sample Sizes" = c(2, 4), "Reliability" = c(5, 6),"Sample"=c(7,8),"Parameters"=c(9,10))
+          , stub_indents = list("Stroop" = 1:6, "Simon" = 7:9, "Flanker" = 10:13,"Other"=14:15)
+          , escape = F
+          ,midrules=19
+          ,note="All sample sizes and estimates reflect cleaned data.  See the Appendix for our cleaning steps which differ from those of the original authors.")
+```
+
+```{r}
+save(file='table1.RData',tab)
+```
+
+We applied this model to `r dim(tab0)[1]` different experimental tasks from a variety of authors.  Brief descriptions of the tasks are provided in the Appendix.  The results are shown in Table \ref{tab:makeTable}, and the specific values inform our subsequent simulations.  The first three columns describe the sample sizes:  The first column is the total number of observations across the two conditions after cleaning (see Appendix), the second column is the total number of individuals, and the third column is the average number of replicates per individual per condition.  The fourth and fifth columns provide estimates of reliability.  The column labeled "Full" is the sample reliability using all the observations in one group (see Footnote 1); the column labeled "Split" is the split-half reliability.  Here, even and odd trials comprised two groups and the correlation of individuals' effects across these groups was upweighted by the Spearman prophecy formula.  Note that the former estimate is superior to the split-half estimate because the former uses variability information across the replicates, much like in ANOVA, where the later does not.  The next pair of columns shows the mean sample effect and the standard deviation of individuals' sample effects around this mean.  The remaining two columns are standard deviation estimates from the hierarchical model.  The column $\hat{\sigma}$ is the posterior mean for residual variability and the column $\hat{\sigma}_\theta$ is the posterior mean for the true variability across individuals.  
+
+From the table, we derive the following critical values as typical.  We set the number of individuals to $I= `r typical$I`$ and the number of trials per condition to $L=`r typical$L`$.  We set the trial-by-trial variation to $\sigma= `r 1000*sqrt(typical$s2)`$ ms, and the variation of individuals' true effects to $\sigma_\theta=`r 1000*sqrt(typical$theta.var)`$ ms.  Figure \ref{fig:attenuate} is based on these values, as are the following simulations.
+
+Let's examine these choices in more detail.  The choice of $I=`r typical$I`$ people and $L=`r typical$L`$ replicates per condition is made to emulate designs where many people are going to run in several inhibition tasks.  For tasks with two conditions, there are 40,000 observations per task.  In a typical battery with $J=10$ tasks, the total number of observations is 400,000, which is quite large.  Hence, our choices seem appropriate to typical large-scale individual-difference studies with experimental tasks.
+
+```{r oneTaskGraphFunctions}
+
+freqEst=function(dat)
+{
+	if (mean(dat$cond %in% 1:2)<1) stop("Conditions must be 1 and 2")
+	sub=as.integer(as.factor(dat$sub))
+	I=max(sub)
+    m=tapply(dat$rt,list(sub,dat$cond),mean)
+    effect=m[,2]-m[,1] 
+    ci <- t(-1*sapply(1:I, function(x) t.test(dat$rt[sub==x] ~ dat$cond[sub==x],var.equal=T)         $conf.int))
+    out=data.frame(effect,ci,order(effect))
+    colnames(out)=c('mean','upper','lower','order')
+    return(out)     
+}
+
+bayesEst=function(mcmcEffect,burn=1000){
+	keep=(burn+1):dim(mcmcEffect)[1]
+	m=apply(mcmcEffect,2,mean)
+	lo=apply(mcmcEffect,2,quantile,p=.025)
+	hi=apply(mcmcEffect,2,quantile,p=.975)
+	out=data.frame(m,lo,hi)
+    colnames(out)=c('mean','upper','lower')
+    return(out)     		
+}
+
+graphMe=function(dat,mcmcEffect,burn=0){
+	f=freqEst(dat)
+	f[,1:3]=f[,1:3]*1000 
+	b=bayesEst(mcmcEffect,burn=burn)
+	b[,1:3]=b[,1:3]*1000 
+	o=f$order
+	I=length(o)
+	plot(1:I,f$mean[o],typ='n',ylim=range(f[,1:3]),
+     	xlab="Individual",ylab="Effect (ms)",axes=F)
+	polygon(c(1:I,I:1),c(f[o[1:I],2],f[o[I:1],3]),col=rgb(1,0,0,.2),border=NA)
+	polygon(c(1:I,I:1),c(b[o[1:I],2],b[o[I:1],3]),col=rgb(0,0,1,.2),border=NA)
+	lines(1:I,f[o,1],col='darkred',lwd=2)
+	lines(1:I,b[o,1],col='darkblue',lwd=2)
+	axis(1)
+	axis(2)}
+```
+
+```{r rmLetFlanker,eval=F}
+
+dat=letFlanker[letFlanker$cond %in% 1:2,]
+out=genModOneTask(dat)
+graphMe(dat,out$theta)
+f=freqEst(dat)
+f[,1:3]=f[,1:3]*1000
+sd(f[,1])
+b=bayesEst(out$theta,burn=0)
+b[,1:3]=b[,1:3]*1000
+sd(b[,1])
+
+```
+
+Next, let's examine the choices of variabilities: $\sigma= `r 1000*sqrt(typical$s2)`$ ms and $\sigma_\theta=`r 1000*sqrt(typical$theta.var)`$ ms.  The critical choice is the latter, and a reader may question its small size.  Does it make sense, and why is the larger value $s_d$, the empirically observed standard deviation of individuals effect scores not used.  The values $s_d$ are larger because they necessarily include contributions from trial noise and variability across individuals.  The second column, $s_\theta$ reflects the model's partition of variance, that is, what is left over after trial noise, given by $\sigma$, is accounted for.  Given the assumptions of the model, it reflects only the variability across individuals.  Hence, it is the far better value for simulation.
+
+We provide a second argument that may be more intuitive for understanding the `r sqrt(typical$theta.var)*1000` ms value.  Consider the possibility that all people truly respond faster in the congruent than in the incongruent condition.  Or, restated, nobody has a negative true effect.  This condition is called *dominance* in @Rouder:Haaf:2018a, and is explored extensively in @Haaf:Rouder:2017 and @Haaf:Rouder:2019.  The results from these studies is that dominance broadly holds.  In the Stroop case, everyone Stroops, that is, in the large trial limit, everyone has truly faster scores for congruent than incongruent stimuli.  If dominance holds, and the true mean effect is small across the population, say 50 ms, then the variance between individuals cannot be too high.  For if it were large, then some proportion of people must have negative true effects.  Dominance---which is natural and seems to hold in almost all sets we have examined---provides a limit on the size of variability.  Figure \ref{fig:theta} provides a graph of true values with a spread of `r sqrt(typical$theta.var)*1000` ms.  As can be seen, there is only minimal mass for negative true values, and the spread of true values to us seems appropriate for a true 50 ms effect.
+
+
+
+
+# Estimating Correlations Among Tasks
+
+The critical question is then whether accurate estimation of correlation is possible.  The small simulation in the introduction, which was based on the above typical settings for two tasks and a true population correlation of .80, showed that naive correlations among sample effects were greatly attenuated and Spearman's correction was unstable.  We now assess the recoverability of true latent correlations with the hierarchical models used to simulate data and for several values of true correlations.
+
+## A Hierarchical Model for Correlation
+
+Here we develop a hierarchical trial-level model for many tasks that explicitly models the covariation in performance among them.  A precursor to this model is provided in @Rouder:Haaf:2019a.  At the top level, the model is:
+\[
+Y_{ijk\ell} \sim \mbox{Normal}(\alpha_{ij}+x_k\theta_{ij},\sigma^2).
+\]
+The target of inquiry is $\theta_{ij}$ the effect for the $i$th participant in the $j$th task.  The specification is made easier with a bit of vector and matrix notation.  Let $\bftheta_{i}=(\theta_{i1},\ldots,\theta_{iJ})'$ be a column vector of the $i$th individual's true effects.  This vector comes from a group-level multivariate distribution.  The following is the case for three tasks:
+
+\[
+\bftheta_i=\begin{bmatrix} \theta_{i1}\\ \theta_{i2} \\ \theta_{i3}\end{bmatrix} 
+\sim \mbox{N}_3 \left( \begin{bmatrix} \mu_1\\\mu_2\\\mu_3\end{bmatrix},
+\begin{bmatrix}
+\sigma^2_{1} & \rho_{12}\sigma_{1}\sigma_2 & \rho_{13}\sigma_1\sigma_3\\
+\rho_{12}\sigma_{1}\sigma_2 & \sigma_{2}^2 & \rho_{23}\sigma_2\sigma_3\\
+\rho_{13}\sigma_1\sigma_3 & \rho_{23}\sigma_2\sigma_3 & \sigma_3^2\\
+\end{bmatrix}
+\right).
+\]
+More generally, for $J$ tasks, 
+\begin{equation}
+\label{eq:Sig}
+\bftheta_i \sim \mbox{N}_J(\bfmu,\bfSigma).
+\end{equation}
+
+Priors are needed for $\bfmu$, the vector of task means, and $\bfSigma$, the covariance across the tasks.  We take the same strategy of using scientifically-informed priors.  For $\bfmu$, we place the normal in Figure\ \ref{fig:theta}A on each element.  For $\bfSigma$, we have a number of choices as there has been much recent development in the Bayesian literature.  Perhaps the state-of-the-art is the *LKJ prior* named after the initials of its developers [@Lewandowski:etal:2009].  This prior is based on decomposing the covariation into a set of variances and a correlation matrix.  The LKJ prior is placed on the correlation matrix and priors on the variance terms may be set independently. This prior has been popularized by @McElreath:2016, and implementation is convenient in the `R`-package `rstan` [@rstan:2018].  We implemented this prior as well as the more classic inverse Wishart prior [@OHagan:Forster:2004].  The inverse Wishart was formerly popular because it is conjugate and convenient in practice.  But there is a drawback to the inverse Wishart.  Unlike the LKJ prior, the inverse Wishart is a prior on the covariation matrix $\bfSigma$, and prior settings on variability will affect the posterior values of correlation. In contrast, settings on the variance in the LKJ setup have a much smaller effect on posterior values of correlation.  In the following we used an LKJ(1) prior, where the value 1 refers to the shape of the distribution, and the priors on $\sigma^2_\theta$ as discussed previously are used on the variances terms in $\bfSigma$.  For two tasks, a shape of 1 implies a uniform marginal prior on the correlation, $\rho$.
+
+## Two Tasks
+
+The first simulation is for two tasks.   Using the typical sample sizes discussed above, each hypothetical data set consisted of 80,000 observations (200 people $\times$ 2 tasks $\times$ 2 conditions $\times$ 100 replicates per condition).  One might hope that with such a large sample size and with a goal of estimating a single correlation, the true population correlation, $\rho$, might be recoverable.  Supporting this hope is the success of the single run in Figure \ref{fig:attenuate}C.  On the other hand, given the large degree of measurement noise and the instability of Spearman's correction (Figure \ref{fig:attenuate}B), it seems plausible that $\rho$ may not be unrecoverable.  For the simulations, true correlation values across the two tasks were varied on three levels with values of .2, .5, and .8.  For each of these levels, 100 data sets were simulated and analyzed. 
+
+```{r stanWish,include=F,eval=F}
+stanWishC <- "
+
+data {		
+		int<lower=1> n;
+    int<lower=1> I;
+    int<lower=1> J; 
+		vector[n] y;
+    int<lower=0,upper=I> sub[n];
+    int<lower=1,upper=2> cond[n];
+    int<lower=1,upper=J> task[n];
+    real<lower=0> scle;
+	}
+	
+parameters {
+		matrix[I,J] alpha;
+    matrix[I,J] theta;
+    vector[J] muTheta;
+		cov_matrix[J] BSigma;
+    real<lower=0> sigma2;
+	}
+	
+transformed parameters {
+    real<lower=0> sigma;
+    vector[n] obsMean;
+    for (k in 1:n){
+      obsMean[k]=alpha[sub[k],task[k]]+(cond[k]-1)*theta[sub[k],task[k]];}
+    sigma=sqrt(sigma2);
+	}
+	
+model {
+    matrix[J,J] identity;
+    identity = diag_matrix(rep_vector(1,J)); 
+    muTheta ~ normal(.06,.05);
+    BSigma ~ inv_wishart(J,identity*scle*scle);
+		to_vector(alpha) ~ normal(.8,.3);
+    for (i in 1:I){
+    theta[i,] ~ multi_normal(muTheta,BSigma);}
+		sigma2 ~ inv_gamma(.1,.1);
+		y ~ normal(obsMean,sigma);
+	}"
+stanWishM <- stan_model(model_code = stanWishC)
+```
+
+```{r stanLkjM,eval=F}
+stanLkjC <- "
+data {		
+		int<lower=1> n;
+    int<lower=1> I;
+    int<lower=1> J; 
+		vector[n] y;
+    int<lower=0,upper=I> sub[n];
+    int<lower=1,upper=2> cond[n];
+    int<lower=1,upper=J> task[n];
+	}
+	
+parameters {
+		matrix[I,J] alpha;
+    matrix[I,J] theta;
+    vector[J] muTheta;
+    cholesky_factor_corr[J] Lcorr;  
+    vector<lower=0>[J] SigmaTheta;
+    real<lower=0> sigma2;
+	}
+	
+transformed parameters {
+    real<lower=0> sigma;
+    vector[n] obsMean;
+    for (k in 1:n){
+      obsMean[k]=alpha[sub[k],task[k]]+(cond[k]-1)*theta[sub[k],task[k]];}
+    sigma=sqrt(sigma2);
+	}
+	
+model {
+    y ~ normal(obsMean,sigma);
+    muTheta ~ normal(.06,.05);
+		to_vector(alpha) ~ normal(.8,.3);
+    for (i in 1:I){
+      theta[i,]~multi_normal_cholesky(muTheta,diag_pre_multiply(SigmaTheta,Lcorr));}
+  SigmaTheta ~ inv_gamma(2,.02^2);
+  Lcorr ~ lkj_corr_cholesky(1);}
+
+generated quantities {
+  matrix[J,J] Omega;
+  matrix[J,J] Sigma;
+  Omega = multiply_lower_tri_self_transpose(Lcorr);
+  Sigma = quad_form_diag(Omega, SigmaTheta); 
+}"
+stanLkjM <- stan_model(model_code = stanLkjC)
+```
+
+```{r twoTaskSetUp}
+sim2=function(vals,trueCor){
+   I=vals$I #ppl
+   L=vals$L # reps
+   J=2
+   alpha.var=diag(rep(vals$alpha.var,J))
+   t.alpha=rmvnorm(I,rep(.8,J),alpha.var)
+   t.theta=mvrnorm(I,
+                rep(.06,J),
+                matrix(ncol=2,
+                rep(vals$theta.var,4)*c(1,trueCor,trueCor,1)))
+   t.s2=vals$s2
+   K=2
+   N=I*J*K*L
+   sub=rep(1:I,each=J*K*L)
+   task=rep(rep(1:J,each=K*L),I)
+   cond=rep(rep(1:K,each=L),I*J)
+   subtask=cbind(sub,task)
+   t.cell=t.alpha[subtask]+(cond-1)*t.theta[subtask]
+   rt=rnorm(N,t.cell,sqrt(t.s2))
+   dat=data.frame(sub,task,cond,rt)
+   out=list(dat=dat,t.theta=t.theta)
+   return(out)
+}
+
+observed=function(dat){
+         mrt=tapply(dat$rt,list(dat$sub,dat$task,dat$cond),mean)
+        effect=mrt[,,2]-mrt[,,1]
+        return(cor(effect))
+}
+```
+
+```{r twoTaskrun,eval=sim2Flag}
+set.seed(345)
+R=100*3
+pop.cor=rep(c(.2,.5,.8),each=R/3)
+M=300
+burn=100
+cor=matrix(nrow=M-burn,ncol=R)
+spearman.cor=true.cor=observed.cor=mod.cor=1:R
+for (r in 1:R){
+  out=sim2(typical,pop.cor[r])
+  dat=out$dat
+  mod=genModWish2(dat,M=M)
+  spearman.cor[r]=spearman(dat)[1,2]
+  observed.cor[r]=observed(dat)[1,2]
+  true.cor[r]=cor(out$t.theta)[1,2]
+  for (m in 1:(M-burn)){
+    Sigma=solve(mod$B[m+burn,,])
+    cor[m,r]=cov2cor(Sigma)[1,2]}
+  mod.cor[r]=mean(cor[,r])
+}
+
+results=cbind(pop.cor,
+              true.cor,
+              observed.cor,
+              spearman.cor,
+              mod.cor)
+
+write.table(round(results,3),file="twoTaskSimResults",row.names=F,quote=F)
+OmegaS=cor
+save(file="OmegaS.Rdata",OmegaS)
+```
+
+```{r recov2,fig.asp=1.0,fig.cap="Revocery of correlations from two tasks.  A: Boxplots of recovered correlations from naive sample correlations, Spearman's correction, and the hierarchical model.  B-D: Posterior 95% credible intervals for the model-recovered correlations for true correlations of .2, .5, and .8, respectively."}
+
+myCol=c(rgb(.8,0,0,.5),rgb(0,.4,0,.5),rgb(0,0,.8,.5))
+myColSat=c(rgb(1,0,0),rgb(0,.5,0),rgb(0,0,1))
+res=read.table('twoTaskSimResults',head=T)
+layout(matrix(nrow=2,ncol=3,byrow = T,c(1,1,1,2,3,4)))
+par(mar=c(4,4,1,1),mgp=c(2,.7,0),cex=1.0)
+small=res[,1]==.2
+med=res[,1]==.5
+large=res[,1]==.8
+boxplot(cbind(res[small,3:5],res[med,3:5],res[large,3:5]),
+              col=myColSat,axes=F,ylim=c(-.5,max(res)),
+        at=c(1:3,5:7,9:11),cex=.7,ylab="Correlation Estimate")
+axis(2)
+axis(1,at=c(1,3),lab=c("",""))
+mtext(expression(rho ~ "=" ~ ".2"), side = 1, at = 2, line = .7)
+axis(1,at=c(5, 7),lab=c("",""))
+mtext(expression(rho ~ "=" ~ ".5"), side = 1, at = 6, line = .7)
+axis(1,at=c(9, 11),lab=c("",""))
+mtext(expression(rho ~ "=" ~ ".8"), side = 1, at = 10, line = .7)
+segments(.5,.2,3.5,.2,lwd=2)
+segments(4.5,.5,7.5,.5,lwd=2)
+segments(8.5,.8,11.5,.8,lwd=2)
+mtext(side=3,"A.",adj=0,cex=1.1,line=-1)
+par(xpd=NA)
+legend(9.5,.15,fill=myColSat,legend=c("Naive","Spearman","Model"), bty = "n", cex = .9)
+par(xpd=F)
+
+ myPch=c(15,17,19)
+ 
+# matplot(res[,2],res[,3:5],pch=myPch,col=myCol,
+#         xlab="Correlation among True Individual Scores",
+#         ylab="Estimated Correlation",xlim=c(0,1),ylim=c(-.55,1.2))
+# abline(h=0,lty=2)
+# abline(0,1)
+# abline(1,0,lty=2)
+# legend(.75,.03,legend=c("Naive","Corrected","Model"),pch=myPch,col=myColSat,bg="white")
+
+
+load("OmegaS.RData")
+makeStats=function(cors){
+  mn=apply(cors,1,mean)
+  lo=apply(cors,1,quantile,p=.025)
+  hi=apply(cors,1,quantile,p=.975)
+  o=order(mn)
+  return(cbind(lo[o],mn[o],hi[o]))
+}
+
+par(mar=c(4,1.5,1,1))
+a=makeStats(t(OmegaS[,res[,1]==.2]))
+R=dim(a)[1]
+plot(a[,2],1:R,ylab="",xlim=c(-1,1),pch=20,cex=.8, col = "white",
+     xlab="Posterior Correlation",axes=F)
+arrows(code=3,angle=90,a[,1],1:R,a[,3],1:R,length=.02,col='grey')
+points(a[,2],1:R,pch=20,cex=.8, col = adjustcolor(1, .7))
+axis(1, cex.axis = .75)
+mtext(side=3,"B.",adj=0,cex=1.1,line= -1)
+abline(v=.2)
+
+a=makeStats(t(OmegaS[,res[,1]==.5]))
+R=dim(a)[1]
+plot(a[,2],1:R,ylab="",xlim=c(-1,1),pch=20,cex=.8, col = "white",
+     xlab="Posterior Correlation",axes=F)
+arrows(code=3,angle=90,a[,1],1:R,a[,3],1:R,length=.02,col="grey")
+points(a[,2],1:R,pch=20,cex=.8, col = adjustcolor(1, .7))
+axis(1, cex.axis = .75)
+abline(v=.5)
+mtext(side=3,"C.",adj=0,cex=1.1,line=-1)
+
+
+a=makeStats(t(OmegaS[,res[,1]==.8]))
+R=dim(a)[1]
+plot(a[,2],1:R,ylab="",xlim=c(-1,1),pch=19,cex=.8, col = "white",
+     xlab="Posterior Correlation",axes=F)
+arrows(code=3,angle=90,a[,1],1:R,a[,3],1:R,length=.02,col='grey')
+points(a[,2],1:R,pch=20,cex=.8, col = adjustcolor(1, .7))
+axis(1, cex.axis = .75)
+abline(v=.8)
+mtext(side=3,"D.",adj=0,cex=1.1,line=-1)
+```
+
+```{r}
+res=read.table('twoTaskSimResults',head=T)
+rmse=function(true,est) sqrt(mean((true-est)^2))
+small=res[,1]==.2
+sdTrue.2=sd(res[small,2])
+```
+
+Figure \ref{fig:recov2}A shows the results as boxplots.  Naive correlations from participant-by-task sample means are shown in red.  As expected, these correlations suffer a large degree of attenuation from trial noise.  Correlation estimates from Spearman's correction are shown in green.  These values are better centered though some of the corrected values are greater than 1.0.  The correlation estimates from the hierarchical model with the LKJ(1) prior are shown in blue. 
+
+```{r}
+#take out simulation that had no good values
+a=res[small,5]
+lo=min(a[a> -.9])
+```
+
+Overall, the correlation estimates from Spearman's correction and the hierarchical model are dramatically better than the naive sample-effect correlations.  Yet, the estimates are quite variable.  For example, consider correlations when the population value is .2.  The model estimates range from `r lo` to `r round(max(res[small,5]),2)` and miss the target with a RMSE of `r round(rmse(res[,5],res[,1]),2)`.  Spearman corrected estimates are a smidge better and have an RMSE of `r round(rmse(res[,4],res[,1]),2)`.  Overall this variability is too high to warrant confidence that correlations may be faithfully recovered.
+
+Are there risks in using model-based recovery?  We see in  simulation that the model and Spearman-corrected recovery is exceedingly variable.  One potential problem is that in any one study, researchers using the model inflate the values of correlations.  The attenuation in the naive correlations is conservative in that recovered correlations are never inflated, rather, they are dramatically deflated.  In this regard, we can think of naive-correlations as having a fail-safe quality where high-value correlation estimates are avoided at the draconian expense of not detecting true high correlations.  Spearman-corrected correlations do not share this fail-safe orientation.  The variability in estimation results in values that are both inflated and deflated.  
+
+The critical question is about model-based recovery.  Figure \ref{fig:recov2}A shows only posterior mean estimates.  Yet, in the Bayesian approach, the target is not just the posterior mean, but the entirety of the posterior distribution.  Figure \ref{fig:recov2}B-D shows the posterior 95\% credible intervals for all runs with true correlations of .2, .5, and .8, respectively.  As can be seen, the 95\% credible intervals are fairly wide, and as a result, the analyst knows that correlations have not been well localized.  This lack of localization provides the needed hedge for overinterpreting inflated values. With the Bayesian model-based estimates, at least we know how little we can say about the true correlations.
+
+```{r sim6}
+sim6=function(vals,weights){
+   I=vals$I #ppl
+   L=vals$L # reps
+   J=6
+   alpha.var=diag(rep(vals$alpha.var,J))
+   t.alpha=rmvnorm(I,rep(.8,J),alpha.var)
+   t.score=rnorm(I)
+   t.theta.mu=rep(c(.05,.1),J/2)
+   t.theta=t(outer(t.w,t.score)+rnorm(I*J,0,.01)+t.theta.mu)
+   t.s2=vals$s2
+   K=2
+   N=I*J*K*L
+   sub=rep(1:I,each=J*K*L)
+   task=rep(rep(1:J,each=K*L),I)
+   cond=rep(rep(1:K,each=L),I*J)
+   subtask=cbind(sub,task)
+   t.cell=t.alpha[subtask]+(cond-1)*t.theta[subtask]
+   rt=rnorm(N,t.cell,sqrt(t.s2))
+   dat=data.frame(sub,task,cond,rt)
+   out=list(dat=dat,t.theta=t.theta)
+   return(out)
+}
+```
+
+```{r}
+t.w=seq(.001,.05,length=6)/2
+t.eta2=.01^2
+out=sim6(typical,t.w)
+tSigma=crossprod(t(t.w))+diag(6)*t.eta2
+```
+
+## Six Tasks
+
+We explored correlations across six tasks.  Each hypothetical data set consisted of 240,000 observations.  To generate a wide range of correlations, we used a one-factor model to simulate individuals' true scores.  This factor represents the individual's inhibition ability.   This ability, denoted $z_i$, is distributed as a standard normal.  Tasks may require more or of the individuals' inhibition ability. Therefore, task loadings onto this factor $z_i$ are variable and, as a result, a wide range of correlations occur. The following task loading values work well in producing a diversity of correlations: `r paste(t.w[1:5]*1000,'ms, ')` and `r paste(t.w[6]*1000,'ms')`.  Following the one-factor structure we may generate true scores, $\theta_{ij}$, for each task and participant:
+\[
+\theta_{ij} \sim \mbox{Normal}(\mu_j+z_iw_j,\eta^2),
+\]
+where $z_i$ is the true ability, $w_j$ is the task loading, $\mu_j$ is the task overall mean, and $\eta^2$ is residual variability in addition to that from the factors.  In simulation we set $\eta=10$ ms, and this setting yields standard deviations across $\theta_{ij}$ between 10 ms and 30 ms, which is similar to the 20 ms value used previously.  The true population variance for the one-factor model is $\bfSigma = \bfw\bfw' + \bfI\eta^2$, where $\bfw\bfw'$ is the matrix formed by the outer product of the task loadings.  The true correlation matrix from the variance-covariance matrix $\bfSigma$ is shown in Figure \ref{fig:cov6}A, and the values subtend a large range from near zero to `r round(cov2cor(tSigma)[5,6],2)`.    
+
+```{r,eval=F}
+#One Factor
+pca1C <- "
+	data {		
+		int<lower=1> n;
+    int<lower=1> I;
+    int<lower=1> J;
+		vector[n] y;
+    int<lower=0,upper=I> sub[n];
+    int<lower=1,upper=2> cond[n];
+    int<lower=1,upper=J> task[n];
+	}
+	
+parameters {
+		matrix[I,J] alpha;
+    matrix[I,J] theta;
+    vector[J] muTheta;
+		vector[I] Z; // The latent matrix
+		vector<lower=0>[J] W; // The weight matrix
+    real<lower=0> tau; //variance on theta
+    real<lower=0> eta; //variance on W
+    real<lower=0> sigma2;
+	}
+	
+transformed parameters {
+    matrix[I,J] muThetaMat;
+    real<lower=0> sigma;
+    real<lower=0> t_tau;
+    real<lower=0> t_eta;
+    vector[n] obsMean;
+    for (i in 1:I){
+      for (j in 1:J){
+        muThetaMat[i,j]=muTheta[j];
+    }}
+    for (k in 1:n){
+      obsMean[k]=alpha[sub[k],task[k]]+(cond[k]-1)*theta[sub[k],task[k]];}
+    sigma=sqrt(sigma2);
+    t_tau=inv(sqrt(tau));
+    t_eta=inv(sqrt(eta));
+	}
+	
+model {
+    tau ~ gamma(1e-3,1e-3);
+    eta ~ gamma(2,.05^2);
+		to_vector(Z) ~ normal(0,1);
+    muTheta ~ normal(.075,.05);
+		W ~ exponential(1/.01);
+		to_vector(theta) ~ normal(to_vector(muThetaMat+Z*W'), t_tau);
+		to_vector(alpha) ~ normal(.8,.3);
+		sigma2 ~ inv_gamma(.1,.1);
+		y ~ normal(obsMean,sigma);
+	}"
+```
+
+```{r sixTaskRun, eval=sim6Flag}
+R=10
+result=array(dim=c(R,5,6,6))
+set.seed(789)
+M=300
+burn=100
+cor=array(dim=c(R,M-burn,6,6))
+for (r in 1:R){
+  out=sim6(typical,t.w)
+  dat=out$dat
+  t.theta=out$t.theta
+  result[r,1,,]=cor(t.theta)
+  result[r,2,,]=observed(dat)
+  result[r,3,,]=spearman(dat)
+  mod=genModWish2(dat,M=M)
+  for (m in 1:(M-burn)){
+    Sigma=solve(mod$B[m+burn,,])
+    cor[r,m,,]=cov2cor(Sigma)}
+  result[r,4,,]=apply(cor[r,,,],2:3,mean)
+}
+save(result,file='sixTaskSimResults.RData')
+```
+
+```{r cov6,fig.cap="True and recovered correlation matrices for six tasks.  A: True population correlations. B-D: Correlation estimates from a single run."}
+load(file="sixTaskSimResults.RData")
+cor.theta=result[1,1,,]
+cor.naive=result[1,2,,]
+cor.correct=result[1,3,,]
+cor.model=result[1,4,,]
+
+myPlot=function(cor,title=NA,mar=c(0,0,2,0)){
+corrplot.mixed(cor,title=title,upper="ellipse",cl.lim=c(-1,1),
+               lower.col="black",number.cex=.8,number.font=1,
+               tl.col="black",cl.cex=1,cl.length=2,mar=mar)}
+
+
+layout(matrix(nrow=2,ncol=2,byrow=T,c(1,2,3,4)))
+myPlot(cov2cor(tSigma),'A. Population')
+#myPlot(cor.theta,'B. True Individual')
+myPlot(cor.naive,'B. Naive')
+myPlot(cor.correct,'C. Corrected')
+myPlot(cor.model,'D. Model')
+
+```
+
+```{r recov6,fig.cap="Recovery of correlations from six tasks.  True correlations are derived from a one-factor model and are displayed in Figure \\ref{fig:cov6}."}
+load(file="sixTaskSimResults.RData")
+
+true=as.vector(result[,1,,])
+#true=rep(as.vector(cov2cor(tSigma)),each=10)
+rest=cbind(as.vector(result[,2,,]),
+           as.vector(result[,3,,]),
+           as.vector(result[,4,,]))
+
+par(mgp=c(2,1,0))
+matplot(true,rest,pch=myPch,col=myCol,ylim=c(-.75,1.5),
+        xlab="Correlation Among True Individual Scores",
+        ylab="Estimated Correlation")
+abline(h=0,lty=2)
+abline(0,1)
+abline(1,0,lty=2)
+legend(.7,-.05,legend=c("Naive","Corrected","Model"),pch=myPch,col=myColSat,bg="white")
+```
+
+```{r}
+good=!is.na(rest[,2])
+```
+
+The recovery of correlations is shown for a single simulation run in Figure \ref{fig:cov6}B-D.  The attenuation for the naive correlations is evident, as is variability in model-based and Spearman corrected estimates.  Figure \ref{fig:recov6} shows the performance of the methods across the `r dim(result)[1]` simulation runs.  As can be seen, there remains the dramatic attenuation for the naive correlation of sample effects and the excessive variability for the Spearman-corrected and model-based correlation estimates.  The RMS error across the whole range of true values for the Spearman corrected estimates and model-based estimates are `r round(rmse(true[good],rest[good,2]),2)` and `r round(rmse(true,rest[,3]),2)`, respectively.  The improvement of the LKJ(1) prior over the Spearman correction results with larger numbers of tasks is heartening.  
+
+# Analysis of Rey-Mermet, Gade, and Oberauer (2018)
+
+To demonstrate the real-world difficulties of correlation recovery, we re-examined the flanker and Stroop tasks in Rey-Mermet et al.'s battery of inhibition tasks.  The authors included two different types of Stroop tasks (a number Stroop and a color Stroop task, see the Appendix for details) and two different types of flanker tasks (a letter flanker and an arrow flanker task, see the Appendix for details).  The question then is about the correlation across the tasks.  A reasonable expectation is that all of these tasks correlate positively.
+
+```{r rm4taskFit,eval=runrm4Flag}
+dat=numStroop[numStroop$cond %in% 1:2,]
+N=length(dat$sub)
+task=rep(1,N)
+numStroopDat=cbind(dat,task)
+
+dat=colStroop[colStroop$cond %in% 1:2,]
+N=length(dat$sub)
+task=rep(2,N)
+colStroopDat=cbind(dat,task)
+
+dat=letFlanker[letFlanker$cond %in% 1:2,]
+N=length(dat$sub)
+task=rep(3,N)
+letFlankerDat=cbind(dat,task)
+
+dat=arrowFlanker[arrowFlanker$cond %in% 1:2,]
+N=length(dat$sub)
+task=rep(4,N)
+arrowFlankerDat=cbind(dat,task)
+
+dat=rbind(numStroopDat,colStroopDat,letFlankerDat,arrowFlankerDat)
+dat$sub=as.integer(as.factor(dat$sub))
+
+
+a=(table(dat$sub,dat$task)==0) 
+goodSub=!(a[,1] | a[,2] | a[,3] | a[,4]) 
+dat=dat[goodSub[dat$sub],] 
+dat$sub=as.integer(as.factor(dat$sub)) 
+I=max(dat$sub)
+mod=genModWish2(dat,M=M)
+
+save(file='alodie4dat.RData',dat,mod)
+```
+
+```{r rm4task,fig.cap="Correlations among select tasks in the Rey-Mermet data set.  Tasks are a number Stroop task, a color Stroop task, a letter flanker task, and an arrow flanker task.  Details of the tasks are provided in the Appendix.",eval=T}
+load("alodie4dat.RData")
+cor=array(dim=c(M,4,4))
+burn=0
+for (m in 1:(M-burn)){
+    Sigma=solve(mod$B[m+burn,,])
+    cor[m,,]=cov2cor(Sigma)}
+modCor=apply(cor,2:3,mean)
+mrt=tapply(dat$rt,list(dat$sub,dat$task,dat$cond),mean)
+effect=(mrt[,,2]-mrt[,,1])*1000
+layout(matrix(nrow=2,ncol=3,1:6,byrow=T))
+a=cor(effect)
+names=c("NumStp","ColStrp","LetFlk","ArrFlk")
+colnames(a)=names
+b=spearman(dat)
+colnames(b)=names
+c=modCor
+colnames(c)=names
+myPlot(a,"A. Naive")
+myPlot(b,"B. Corrected")
+myPlot(c,"C. Model")
+```
+
+```{r rm4taskEst,fig.asp=1.0,fig.cap="A. Model-based posterior distributions of population correlations among tasks.  The large variance shows the difficulty of recovery.  B. Individuals' sample effects for color Stroop and arrow flanker tasks show.  C. Hierarchical model estimates show a large degree of shrinakge for arrow flankers but not for color Stroop reflecting the increased range of color Stroop effects."}
+pm=apply(mod$theta,2:3,mean)*1000
+par(cex=1.0,mar=c(4,4,1,1),mgp=c(2,1,0))
+layout(matrix(nrow=2,ncol=2,byrow=T,c(1,1,2,3)))
+mycol=c('black','darkred','darkblue','darkgreen','purple','brown')
+c=0
+plot(density(cor[,1,4]),ylim=c(0,5),xlim=c(-1,1),main="",
+     axes=F,ylab="",xlab="Correlation Coefficient")
+axis(1)
+for (i in 1:3)
+  for (j in (i+1):4){
+    c=c+1
+    lines(density(cor[,i,j]),col=mycol[c],lwd=2)
+  }
+mtext(side=3,adj=0,cex=1.1,"A. Posterior Distributions")
+legend(.5,5,fill=mycol,title="Tasks",bg="white",
+       legend=c("NumStp-ColStp","NumStp-LetFlk","NumStp-ArrFlk",
+                "ColStp-LetFlk","ColStp-ArrFlk","LetFlk-ArrFlk"))
+myLim=c(-50,450)
+plot(effect[,2],effect[,4],pch=19,
+     col=rgb(0,.6,0,.2),
+     ylim=myLim,xlim=myLim,
+     xlab="Color Stroop Effect (ms)",
+     ylab="Arrow Flanker Effect (ms)")
+mtext(side=3,adj=0,cex=1.1,"B. Sample Effects")
+plot(pm[,2],pm[,4],pch=19,
+     col=rgb(0,0,.6,.2),
+     ylim=myLim,xlim=myLim,
+     xlab="Color Stroop Effect (ms)",
+     ylab="Arrow Flanker Effect (ms)")
+mtext(side=3,adj=0,cex=1.1,"C. Model Estimates")
+#plot(effect[,4],pm[,4],pch=19,
+#     col=rgb(1,0,0,.2),
+#     ylim=c(-20,120),
+#     xlim=c(-20,120),
+#     xlab="Sample Effect (ms)",
+#     ylab="Model Effect (ms)")
+#abline(0,1)
+```
+
+The top three rows of Figure \ref{fig:rm4task} show the estimated correlations from sample effects, Spearman's correction, and the hierarchical model.  Given the previous simulations results, it is hard to know how much credence to give these estimated correlations.  In particular, it is hard to know how to interpret the negative correlation between the arrow flanker and color Stroop task.  
+
+To better understand what may be concluded about the range of correlations, we plot the posterior distribution of the correlation (Figure \ref{fig:rm4taskEst}A).  These distributions are unsettling.  The variation in most of these posteriors is so wide that firm conclusions are not possible.  The exception is the null correlation between number and color Stroop which seems to be somewhat well localized.  The surprisingly negative correlation between color Stroop and arrow flanker comes from a posterior so broad that the 95% credible interval is [`r round(quantile(cor[,2,3],p=.025),2)`,`r round(quantile(cor[,2,3],p=.975),2)`].  Here, all we can say is that very extreme correlations are not feasible.  We suspect this limited result is not news.
+
+Analysis of @ReyMermet:etal:2018 provides an opportunity to examine how hierarchical models account for variation across trials as well as variation across people.  Figure \ref{fig:rm4taskEst}B shows sample effects across individuals for the color Stroop and arrow flanker tasks, the two tasks that were most negatively correlated.  There is a far greater degree of variation in individual's effects for the color Stroop task than for the arrow flanker task.  The model estimates (Figure \ref{fig:rm4taskEst}C) reflect this difference in variation.  The variation in arrow flanker is so small that it can be accounted for with trial variation alone.  As a result, the hierarchical model shows almost no individual variability.  In contrast, the variability in the color Stroop is large and the main contributor is true variation across individuals rather than trial variation.  Hence, there is relatively little shrinkage in model estimates. The lack of variation in the arrow flanker task gives rise to the uncertainty in the recovered correlation between the two tasks.
+
+```{r oneTaskRel,eval=F}
+
+R=1000
+rel=split=1:R
+for (r in 1:R){
+  dat=sim1(typical)$dat
+  rel[r]=reliability(dat)
+  split[r]=split.rel(dat)}
+```
+
+
+# Discussion
+
+A basic question facing researchers in cognitive control is whether inhibition is a unified phenomenon or a disparate set of phenomena.  A natural way of addressing this question is to study the pattern of individual differences across several inhibition tasks.  In this paper, we have explored whether correlations across inhibition tasks may be recovered.  We consider typically large studies that enroll hundreds of participants.  The answer is negative---correlations are difficult to recover with anywhere near the accuracy that would allow for a definitive answer to this basic question.  This statement of poor recovery holds even for hierarchical models that are extended to the trial level.  
+
+Why this depressing state-of-affairs occurs is fairly straightforward.   Relative to trial noise, there is little true individual variation in inhibition tasks.  To see why this is so, consider an average effect, say one that is 50 ms.  In inhibition tasks like Stroop and flanker, we can safely make a *dominance assumption*---nobody truly has a negative effect [@Haaf:Rouder:2017].  That is to say nobody truly identifies incongruent stimuli faster than congruent ones.  Under this assumption, where all true scores are positive, a small mean necessarily implies a small variance.  For example, if true Stroop effects are reasonably normally shaped and the mean is 50 ms and there can be no mass below zero, then an upper bound on variability across true scores is a standard deviation of 20 ms.  This is a small amount of variation compared to trial variability, which is typically 10 times larger.  This small degree of variation necessarily implies a small degree of covariation across tasks.  This small degree is beyond the resolution of our experimental designs, and that is why our studies are doomed to fail.
+
+## Solutions
+ 
+There are several possible solutions to the problem of small individual variation, though none are easy or straightforward in practice.  We take them in turn:
+
+**More Trials**:  Perhaps the simplest solution is to run more trials per person per condition.  The usual 50 or 100 trials per task per condition is clearly not enough.  To calculate a good number, researchers should decide in advance how well they need to estimate an individuals' true effect.  We recommend a 5 ms standard error on individual effects, which seems reasonable if true individual variability is around 20 ms.  With this value, we can calculate the number of needed trials.  If people have 180 ms of noise per trial, and we are computing a difference score, then the standard error is $180\sqrt{2/n}$, where $n$ is the number of trials per condition per task.  Setting this standard error to 5 ms yields $n=2591$.  Such a large number of trials per individual per task per condition is outside the practical constraints of most research agendas.
+
+**Better Tasks**: Perhaps the most obvious solution is to search for inhibition tasks with greater individual variation.  In practice, this means engineering tasks that have large overall effects.  Yet, as far as we know, there is no magic bullet to increase effect sizes.  Take, for example, manual Stroop tasks.  Outside of increasing the number of responses, we do not know otherwise how to increase the size of the effects.  And when the number of responses is increased, the trial variability is increased as well.  In summary, it may not be known at this time how to increase the size of effects over what is typically seen.
+
+One alternative to increasing individual variability, from Engle and colleagues [@Kane:Engle:2003; @Unsworth:etal:2004], is to dispense with contrasts altogether.  In  this approach, task scores reflect the average rather than the difference among conditions.  For example, the Stroop effect could be defined as the average speed in congruent and incongruent conditions.  Indeed, there is far more individual variation in condition averages than in condition differences.  The downside of this approach, however, is interpretability.  It is not clear that such condition averages can be interpreted as inhibition measures as they reflect the contribution of a host of processes and are likely dominated by a general speed component [@Salthouse:1996].  Given these difficulties in interpretation, we are hesitant to recommend this approach.
+
+**More Constrained Models**:  One future direction is the development of highly constrained hierarchical models.  The population-level variance matrix in our model, $\bfSigma$ in Equation \ref{eq:Sig}, is modeled with the unconstrained LKJ(1) prior of @Lewandowski:etal:2009.  Yet, perhaps better recovery is possible with more *a priori* constraints on correlations built into the model.  One obvious approach is to build reduced-factor models, say a principle-components decomposition of the covariation [@Bishop:1999].  The effectiveness of such constraints is a matter of how much variation there is to decompose.  The risk is that with impoverished data, the recovered structure may simply reflect the *a priori* constraints.  Whether latent variable decompositions offer true gains in such impoverished contexts remains an open question.
+
+It is unlikely that any of the three possible solutions, increased trial sizes, better-engineered tasks, or analysis with *a priori* constraints, will be sufficient to understand the structure of inhibition.  Instead, we suspect, it will be advances on all three fronts in concert that may hold the possibility.  The take-home point is that this problem of understanding inhibition from individual difference is hard, and answering it requires an inordinate degree of care, judiciousness, and humility.
+
+
+## Trial-Level Models Are Necessary
+
+The key innovation in this paper is the use of hierarchical linear models that extend down to the trial level.  By modeling variation at the trial level and across people simultaneously, we are able to avoid the dramatic attenuation of correlation from trial noise.  In this paper, we have emphasized the shortcomings of the whole endeavor to recover correlations.  We urge readers not to misread this emphasis as one against such models.
+
+On the contrary, we feel strongly that a precondition for recovering correlations is the use of hierarchical models that extend to the trial level.  While it may be that in typical designs, recovery will be difficult with these hierarchical models, it will be impossible without them.  We cannot stress this point enough---there is no loss in using models that account for trial variation.  Conversely, the loss from aggregating the data in forming sample effects is dramatic as the resulting degree of measurement error is large.  
+
+The good news here is that individual difference researchers are well acquainted with hierarchical and latent variable models.  The ones we use are run-of-the-mill linear mixed models with normally-distributed errors.  Although we fit them in the Bayesian framework using `R` [@RCoreTeam:2018] and `stan` [@Carpenter:etal:2017], there is nothing to prevent classical analysis.  Classical model analysis should be convenient in a wide variety of packages including `lme4`, `Mplus`, and `AMOS`.  Given the field's familiarity with mixed linear models and the accumulated expertise in application, the wide-spread use of trial-level hierarchical models is feasible.  Not using such models in this context strikes us as analytic malpractice.
+
+\newpage
+
+# Appendix
+
+### Data Set 1, @vonBastian:etal:2015:
+The task was a number Stroop task. Participants were presented a string of digits. In each string, the digits were always replicates, say *22* or *444*, and the lengths varied from one digit to four digits. The participants identied the length of the string, for example, the correct report for *444* is 3. In the congruent condition, the length and the digits matched; e.g., *22* and *4444*.  In the incongruent condition, the length and digits mismatched, e.g., *44* and *2222*.  We used somewhat different data cleaning steps than the original authors.  Ours are described in @Haaf:Rouder:2017.
+
+### Data Set 2,  @Pratte:etal:2010, Experiment 1:  
+The task was a color Stroop task. Participants identified the color of the color words, e.g. the word *RED* presented in blue. In the congruent condition, presentation color and word meaning matched, e.g. *BLUE* presented in blue. In the incongruent condition, they did not match, e.g. *RED* presented in blue.  We used the original authors' cleaning steps.
+
+### Data Set 3, @Pratte:etal:2010, Experiment 2: 
+The task was a sidedness judgment Stroop task.  Participants were presented the words *LEFT* and *RIGHT*, and these were presented to the left or right of fixation. Participants identified the position of the word while ignoring the meaning of the word. A congruent trial occurred when position of the word and word meaning corresponded; an incongruent trial emerged when position and word meaning did not correspond.  We used the original authors' cleaning steps.
+
+### Data Set 4, @ReyMermet:etal:2018:
+The task was a number Stroop task.  Participants identified the length of digit strings much like in Data Set 1.  Cleaning proceeded as follows. First, note that in the original, trials ended at 2.0 seconds even if the participant did not respond.  We call these trials *too slow*.  1. We discarded the five participants discarded by the original authors; 2. We discarded too-slow trials, error trials, and trials with RTs below .275 seconds (*too-fast* trials).  3. We discared all participants who had more than 10\% errors, who had more than 2% too-slow trials, or more than 1\% too fast trials.  
+
+### Data Set 5, @ReyMermet:etal:2018: 
+The task was a color Stroop task. Participants identified the color of the presented words (red, blue, green, or yellow). The presentation color and word meaning matched in the congruent condition and did not match in the incongruent condition.  Cleaning steps were the same for Data Set 4.
+
+### Data Set 6, @Hedge:etal:2018: 
+The task was a color Stroop task.  Participants identified the color of a centrally presented word (red, blue, green, or yellow). In the congruent condition, presentation color and word meaning matched. In the incongruent condition, they did not match.  Following @Hedge:etal:2018, we combined data from their Experiments 1 and 2.  Our cleaning steps differed from @Hedge:etal:2018 and are described in @Rouder:Haaf:2019a. 
+
+
+### Data Set 7, @vonBastian:etal:2015:
+The task was a Simon task.  Participants were presented either a green or red circle to the left or right of fixation.  They identifed the color, green or red color by pressing buttons with their left or right hand, respectively. The spatial location of the circle and of the response could be either congruent (e.g., a green circle appearing on the left) or incongruent (e.g., a green circle appearing on the right).  Cleaning steps are described in @Haaf:Rouder:2017.
+
+### Data Set 8, @Pratte:etal:2010, Experiment 1:
+The task was a Simon task almost identical to that in Data Set 7.  Participants identified the color of a square presented to the left or right of fixation by making a lateralized key response.   A congruent trial occurred when position of the square was ipsilateral correct key response.; an incongruent trial occurred when the position of the square was contralateral to the correct key response.   We used the original authors cleaning steps.
+
+
+### Data Set 9: @Pratte:etal:2010, Experiment 2: 
+The task was a *lateral-words* Simon task.  Participants were presented the words *LEFT* and *RIGHT* to the left or right of fixation.  Participants identified the meaning of the word while ignoring the location of the word. A congruent trial occurred when position of the word and word meaning corresponded; an incongruent trial occurred when position of the word and word meaning did not match.   We used the original authors cleaning steps.
+
+### Data Set 10, @vonBastian:etal:2015:
+The task was a letter-flanker task.  Participants were presented strings of seven letters and judged whether the center letter was a vowel (*A*, *E*) or consonant (*S*, *T*).  The congruent condition was when the surrounding letters came from the same category as the target (e.g. *AAAEAAA*); the incongruent condition was when the surrounding letters came from the opposite category of the target (e.g., *TTTETTT*).  Cleaning steps are described in @Haaf:Rouder:2017.
+
+### Data Set 11, @ReyMermet:etal:2018:
+The task was an arrow flanker task.  Participants identified the direction of the central arrow (left/right) while ignoring four flanking arrows. Congruency and incongruency occured when the center arrow matched and mismatched the direction of the flanker arrows, respectively.   Cleaning steps were the same for Data Set 4.
+
+###  Data Set 12, @ReyMermet:etal:2018:  
+The task was a letter-flanker task almost identical to Data Set 10.  Cleaning steps were the same for Data Set 4.
+
+### Data Set 13: @Hedge:etal:2018:  
+The task was an arrow flanker task almost identical to Data Set 11.   Following @Hedge:etal:2018, we combined data from their Experiments 1 and 2.  Our cleaning steps differed from @Hedge:etal:2018 and are described in @Rouder:Haaf:2019a.  
+
+
+### Data Set 14, @Rouder:etal:2005a:
+The task was a digit-distance task.  Participants were presented digits 2, 3, 4, 6, 7, 8, and had judged whether the presented digit was less-than or greater-than five.  Digits further from five are identified faster than those close to 5.  Responses to digits 2 and 8 conprised the *far* condition; responses to digits 4 and 6 comprised the *close* condition.  The difference in conditions comprised a  *distance-from-five* effect.    We used the original authors' cleaning steps.
+
+### Data Set 15, @Rouder:etal:2010d:
+The task was a grating-orientation discrimination.  Participants were presented nearly-vertical Gabor patches that were very slightly displaced to the left or right; they indicated whether the displacement was left or right.  Displacements were $\pm1.5^\circ$, $\pm2.0^\circ$, and $\pm4.0^\circ$ from vertical.  Responses from the $\pm1.5^\circ$ comprised the *hard* condition; responses from the $\pm4.0^\circ$ comprised the *easy* condition; the difference comprised a *orientation-strength* effect.    We used the original authors' cleaning steps.
+
+
+
+\newpage 
+
+# References

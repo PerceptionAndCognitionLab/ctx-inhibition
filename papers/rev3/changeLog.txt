@@ -1,0 +1,21 @@
+1. Changed title
+
+2. Changed recoverable to localization almost everywhere
+
+3. Shortened measurement noise vs. trial noise
+
+4. Introduced trial size.
+
+5. Took out references to dominance.  We are proud of the work, but don't need it here.  Rewrote rationale for between-participant variability.
+
+6. Shortened representativeness of 24 studies.
+
+7. Removed risks to models paragraph in two-tasks, made little sense.
+
+8. Changed "naive" to sample.
+
+9. Removed "DoWe nt rely on reliability?
+
+10. Restructured conclusion to discuss hierarchical models more thoughtfully
+
+11. Added more about gamification and diffusion modeling.
